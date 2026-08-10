@@ -291,10 +291,14 @@ h4 { font-size: 1.1rem; }
 /* ─── Navbar ─────────────────────────────────────────────── */
 .navbar {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(13,17,23,0.85);
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--clr-border);
+  background: rgba(13,17,23,0.55);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border-bottom: 1px solid rgba(63,185,80,0.12);
   padding: var(--space-3) 0;
+  box-shadow:
+    0 1px 0 0 rgba(255,255,255,0.04),
+    0 4px 24px rgba(0,0,0,0.25);
 }
 .navbar-inner {
   display: flex; align-items: center;
@@ -312,17 +316,179 @@ h4 { font-size: 1.1rem; }
 .navbar-link {
   color: var(--clr-text-muted);
   font-weight: 500;
+  font-size: 0.85rem;
   transition: color var(--transition);
   position: relative;
-  padding-bottom: 2px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
 }
-.navbar-link:hover, .navbar-link.active { color: var(--clr-primary); }
+.navbar-link:hover {
+  color: var(--clr-text);
+  background: rgba(255,255,255,0.04);
+}
+.navbar-link.active {
+  color: var(--clr-primary);
+  background: rgba(63,185,80,0.08);
+}
 .navbar-link.active::after {
   content: '';
-  position: absolute; bottom: -2px; left: 0; right: 0;
+  position: absolute; bottom: -2px; left: 8px; right: 8px;
   height: 2px;
   background: var(--clr-primary);
   border-radius: 1px;
+}
+
+/* ─── Profile Dropdown ──────────────────────────────────── */
+.profile-dropdown {
+  position: relative;
+  margin-left: var(--space-2);
+}
+.profile-trigger {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 999px;
+  padding: 4px 10px 4px 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.profile-trigger:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(63,185,80,0.3);
+}
+.profile-trigger__avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--clr-primary), #2ea043);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.75rem; color: #fff;
+  flex-shrink: 0;
+}
+.profile-trigger__chevron {
+  color: var(--clr-text-muted);
+  transition: transform 0.2s ease;
+}
+.profile-trigger__chevron.open { transform: rotate(180deg); }
+
+/* ── The dropdown panel ── */
+.profile-menu {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  width: 300px;
+  background: rgba(22,27,34,0.92);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.04) inset;
+  padding: 0;
+  z-index: 200;
+  overflow: hidden;
+  animation: profileMenuIn 0.18s ease-out;
+}
+@keyframes profileMenuIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Header ── */
+.profile-menu__header {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.profile-menu__avatar-lg {
+  width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--clr-primary), #2ea043);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 1rem; color: #fff;
+  box-shadow: 0 0 0 3px rgba(63,185,80,0.2);
+}
+.profile-menu__user-info { min-width: 0; }
+.profile-menu__name {
+  font-weight: 700; font-size: 0.9rem;
+  color: var(--clr-text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.profile-menu__email {
+  font-size: 0.72rem; color: var(--clr-text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.profile-menu__role-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 6px; padding: 2px 8px;
+  font-size: 0.65rem; font-weight: 600;
+  border: 1px solid; border-radius: 999px;
+  background: rgba(255,255,255,0.03);
+}
+
+/* ── Stats Bar ── */
+.profile-menu__stats {
+  display: flex; align-items: center; justify-content: space-around;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.profile-menu__stat { text-align: center; flex: 1; }
+.profile-menu__stat-value {
+  font-size: 0.95rem; font-weight: 800;
+  font-family: var(--font-heading);
+  color: var(--clr-text);
+}
+.profile-menu__stat-label {
+  font-size: 0.6rem; color: var(--clr-text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-top: 1px;
+}
+.profile-menu__stat-divider {
+  width: 1px; height: 24px;
+  background: rgba(255,255,255,0.06);
+}
+
+/* ── XP Progress ── */
+.profile-menu__xp-section {
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.profile-menu__xp-header {
+  display: flex; justify-content: space-between;
+  font-size: 0.68rem; color: var(--clr-text-muted);
+  margin-bottom: 6px;
+}
+.profile-menu__xp-bar {
+  height: 5px; border-radius: 3px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+.profile-menu__xp-fill {
+  height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--clr-primary), #2ea043);
+  transition: width 0.4s ease;
+}
+
+/* ── Menu Items ── */
+.profile-menu__divider {
+  height: 1px;
+  background: rgba(255,255,255,0.06);
+}
+.profile-menu__item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 16px;
+  font-size: 0.82rem; font-weight: 500;
+  color: var(--clr-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none; background: none; width: 100%;
+  text-align: left; text-decoration: none;
+}
+.profile-menu__item:hover {
+  background: rgba(255,255,255,0.05);
+  color: var(--clr-text);
+}
+.profile-menu__item-icon {
+  font-size: 0.95rem; width: 20px; text-align: center;
+}
+.profile-menu__item--danger:hover {
+  background: rgba(248,81,73,0.1);
+  color: #f85149;
 }
 
 /* ─── Hero Section ───────────────────────────────────────── */

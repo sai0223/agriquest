@@ -132,14 +132,31 @@ export default function LandingPage() {
         borderTop: '1px solid var(--clr-border)'
       }}>
         <div className="container text-center">
-          <h2 style={{ marginBottom: 'var(--space-3)' }}>Ready to Start Your <span className="text-green">Farming Journey?</span></h2>
-          <p className="text-muted" style={{ marginBottom: 'var(--space-5)' }}>
-            Join AgriQuest for free. No farming experience needed.
-          </p>
-          <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center' }}>
-            <Link to="/register?role=STUDENT" className="btn btn-primary btn-lg">I'm a Student</Link>
-            <Link to="/register?role=FARMER" className="btn btn-amber btn-lg">I'm a Farmer</Link>
-          </div>
+          {user ? (
+            <>
+              <h2 style={{ marginBottom: 'var(--space-3)' }}>Continue Your <span className="text-green">Farming Journey</span></h2>
+              <p className="text-muted" style={{ marginBottom: 'var(--space-5)' }}>
+                Welcome back, {user.name}! Jump right into your farm.
+              </p>
+              <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center' }}>
+                <Link to={user.role === 'FARMER' ? '/farmer/dashboard' : user.role === 'TEACHER' ? '/teacher/dashboard' : '/dashboard'} className="btn btn-primary btn-lg">
+                  Go to Dashboard →
+                </Link>
+                <Link to="/farm" className="btn btn-amber btn-lg">Open Farm Sim</Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 style={{ marginBottom: 'var(--space-3)' }}>Ready to Start Your <span className="text-green">Farming Journey?</span></h2>
+              <p className="text-muted" style={{ marginBottom: 'var(--space-5)' }}>
+                Join AgriQuest for free. No farming experience needed.
+              </p>
+              <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center' }}>
+                <Link to="/register?role=STUDENT" className="btn btn-primary btn-lg">I'm a Student</Link>
+                <Link to="/register?role=FARMER" className="btn btn-amber btn-lg">I'm a Farmer</Link>
+              </div>
+            </>
+          )}
         </div>
       </section>
 
