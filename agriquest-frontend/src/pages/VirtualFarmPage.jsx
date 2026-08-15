@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    VirtualFarmPage — 3D Interactive Farm Simulation
-   Replaces the old 2D emoji grid with a real WebGL 3D farm
+   With tool modes, farmer character, and interactive actions
    ═══════════════════════════════════════════════════════════════ */
 import React, { useState, useEffect } from 'react';
 import { FarmStateProvider, useFarmState } from '../farm3d/simulation/farmState.jsx';
@@ -95,15 +95,7 @@ function FarmLayout() {
 
       <div className="farm3d-center">
         {/* Toolbar */}
-        <div className="farm3d-toolbar">
-          <div className="farm3d-toolbar__left">
-            <span className="farm3d-toolbar__title">🌾 3D Virtual Farm</span>
-            <span className="farm3d-toolbar__badge">Interactive Simulation</span>
-          </div>
-          <div className="farm3d-toolbar__right">
-            <span className="farm3d-toolbar__hint">🖱️ Orbit · 🔍 Zoom · ✋ Pan</span>
-          </div>
-        </div>
+        <Toolbar />
 
         {/* 3D Scene */}
         <FarmScene />
@@ -115,6 +107,45 @@ function FarmLayout() {
       <RightPanel />
 
       <NotificationToasts />
+    </div>
+  );
+}
+
+/* ─── Toolbar with tool mode indicator ────────────────────── */
+function Toolbar() {
+  const { state, actions } = useFarmState();
+
+  return (
+    <div className="farm3d-toolbar">
+      <div className="farm3d-toolbar__left">
+        <span className="farm3d-toolbar__title">🌾 3D Virtual Farm</span>
+        <span className="farm3d-toolbar__badge">Interactive Simulation</span>
+      </div>
+      <div className="farm3d-toolbar__right">
+        {state.activeToolMode ? (
+          <div className="farm3d-toolbar__tool-active">
+            <span className="farm3d-toolbar__tool-icon">
+              {state.activeToolMode === 'water' ? '💧' : '🧪'}
+            </span>
+            <span className="farm3d-toolbar__tool-label">
+              {state.activeToolMode === 'water' ? 'Water Tool' : 'Fertilizer Tool'}
+            </span>
+            <button
+              className="farm3d-toolbar__tool-cancel"
+              onClick={() => actions.setToolMode(null)}
+              title="Cancel tool"
+            >
+              ✕
+            </button>
+          </div>
+        ) : state.farmerState.isMoving || state.farmerState.isPerformingAction ? (
+          <span className="farm3d-toolbar__hint farm3d-toolbar__hint--farmer">
+            🚶 Farmer {state.farmerState.isMoving ? 'walking' : 'working'}...
+          </span>
+        ) : (
+          <span className="farm3d-toolbar__hint">🖱️ Orbit · 🔍 Zoom · ✋ Pan</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -137,6 +168,16 @@ function BottomBar() {
       {state.selectedCropId && (
         <span className="farm3d-bottom-bar__item">
           🌱 Planting: <strong className="text-amber">{state.selectedCropId}</strong>
+        </span>
+      )}
+      {state.activeToolMode && (
+        <span className="farm3d-bottom-bar__item">
+          🔧 Tool: <strong className="text-sky">{state.activeToolMode}</strong>
+        </span>
+      )}
+      {state.farmerState.isPerformingAction && (
+        <span className="farm3d-bottom-bar__item">
+          🌾 Farmer: <strong className="text-amber">{state.farmerState.action}ing ({state.farmerState.actionProgress}%)</strong>
         </span>
       )}
       <span className="farm3d-bottom-bar__item">

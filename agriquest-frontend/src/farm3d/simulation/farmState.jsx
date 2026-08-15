@@ -42,6 +42,9 @@ function createInitialPlots() {
   return plots;
 }
 
+/* ─── Farmer idle position (near farmhouse) ───────────────── */
+const FARMER_IDLE_POSITION = [-6, 0, -3.5];
+
 const initialState = {
   plots: createInitialPlots(),
   selectedPlotId: null,
@@ -51,6 +54,22 @@ const initialState = {
   totalHarvested: 0,
   totalProfit: 0,
   notifications: [], // { id, message, type }
+
+  /* ─── Tool mode (water / fertilize free-painting) ──────── */
+  activeToolMode: null, // null | 'water' | 'fertilize'
+
+  /* ─── Farmer character state ───────────────────────────── */
+  farmerState: {
+    position: [...FARMER_IDLE_POSITION],
+    targetPlotId: null,
+    targetPosition: null,
+    action: null,       // 'water' | 'fertilize' | 'plant' | 'harvest' | null
+    isMoving: false,
+    isPerformingAction: false,
+    actionProgress: 0,  // 0-100
+    idlePosition: [...FARMER_IDLE_POSITION],
+    returningHome: false,
+  },
 };
 
 /* ─── Reducer ─────────────────────────────────────────────── */
@@ -243,6 +262,143 @@ function farmReducer(state, action) {
       return changed ? { ...state, plots: newPlots } : state;
     }
 
+    /* ─── Tool Mode ─────────────────────────────────────────── */
+    case 'SET_TOOL_MODE':
+      return {
+        ...state,
+        activeToolMode: action.mode,
+        // Clear planting mode when entering tool mode
+        plantingMode: action.mode ? false : state.plantingMode,
+        selectedCropId: action.mode ? null : state.selectedCropId,
+      };
+
+    /* ─── Farmer Actions ────────────────────────────────────── */
+    case 'START_FARMER_ACTION':
+      return {
+        ...state,
+        selectedPlotId: action.plotId,
+        farmerState: {
+          ...state.farmerState,
+          targetPlotId: action.plotId,
+          targetPosition: action.targetPosition,
+          action: action.farmerAction,
+          isMoving: true,
+          isPerformingAction: false,
+          actionProgress: 0,
+          returningHome: false,
+        },
+      };
+
+    case 'FARMER_ARRIVED_AT_PLOT':
+      return {
+        ...state,
+        farmerState: {
+          ...state.farmerState,
+          isMoving: false,
+          isPerformingAction: true,
+          actionProgress: 0,
+          position: state.farmerState.targetPosition
+            ? [...state.farmerState.targetPosition]
+            : state.farmerState.position,
+        },
+      };
+
+    case 'UPDATE_FARMER_POSITION':
+      return {
+        ...state,
+        farmerState: {
+          ...state.farmerState,
+          position: action.position,
+        },
+      };
+
+    case 'FARMER_ACTION_PROGRESS':
+      return {
+        ...state,
+        farmerState: {
+          ...state.farmerState,
+          actionProgress: action.progress,
+        },
+      };
+
+    case 'COMPLETE_FARMER_ACTION': {
+      // Apply the actual farming action when the farmer finishes
+      const farmerAction = state.farmerState.action;
+      const targetPlotId = state.farmerState.targetPlotId;
+      let updatedState = { ...state };
+
+      if (farmerAction === 'water' && targetPlotId) {
+        const plot = updatedState.plots[targetPlotId];
+        if (plot && plot.cropId) {
+          updatedState = {
+            ...updatedState,
+            plots: {
+              ...updatedState.plots,
+              [targetPlotId]: {
+                ...plot,
+                isWatered: true,
+                soilMoisture: Math.min(100, plot.soilMoisture + 30),
+                lastWateredAt: Date.now(),
+              },
+            },
+            notifications: [
+              ...updatedState.notifications,
+              { id: Date.now(), message: `Farmer watered plot ${targetPlotId}`, type: 'info' },
+            ],
+          };
+        }
+      } else if (farmerAction === 'fertilize' && targetPlotId) {
+        const plot = updatedState.plots[targetPlotId];
+        if (plot && plot.cropId) {
+          updatedState = {
+            ...updatedState,
+            plots: {
+              ...updatedState.plots,
+              [targetPlotId]: {
+                ...plot,
+                isFertilized: true,
+                soilQuality: Math.min(100, plot.soilQuality + 20),
+                health: Math.min(100, plot.health + 10),
+              },
+            },
+            notifications: [
+              ...updatedState.notifications,
+              { id: Date.now(), message: `Farmer fertilized plot ${targetPlotId}`, type: 'info' },
+            ],
+          };
+        }
+      }
+
+      return {
+        ...updatedState,
+        farmerState: {
+          ...updatedState.farmerState,
+          isPerformingAction: false,
+          actionProgress: 100,
+          returningHome: true,
+          targetPlotId: null,
+          action: null,
+        },
+        activeToolMode: null,
+      };
+    }
+
+    case 'FARMER_RETURNED_HOME':
+      return {
+        ...state,
+        farmerState: {
+          ...state.farmerState,
+          position: [...FARMER_IDLE_POSITION],
+          isMoving: false,
+          returningHome: false,
+          targetPlotId: null,
+          targetPosition: null,
+          action: null,
+          isPerformingAction: false,
+          actionProgress: 0,
+        },
+      };
+
     case 'DISMISS_NOTIFICATION':
       return {
         ...state,
@@ -278,6 +434,14 @@ export function FarmStateProvider({ children }) {
     tickGrowth: () => dispatch({ type: 'TICK_GROWTH' }),
     dismissNotification: (id) => dispatch({ type: 'DISMISS_NOTIFICATION', id }),
     clearOldNotifications: () => dispatch({ type: 'CLEAR_OLD_NOTIFICATIONS' }),
+    setToolMode: (mode) => dispatch({ type: 'SET_TOOL_MODE', mode }),
+    startFarmerAction: (plotId, targetPosition, farmerAction) =>
+      dispatch({ type: 'START_FARMER_ACTION', plotId, targetPosition, farmerAction }),
+    farmerArrivedAtPlot: () => dispatch({ type: 'FARMER_ARRIVED_AT_PLOT' }),
+    updateFarmerPosition: (position) => dispatch({ type: 'UPDATE_FARMER_POSITION', position }),
+    farmerActionProgress: (progress) => dispatch({ type: 'FARMER_ACTION_PROGRESS', progress }),
+    completeFarmerAction: () => dispatch({ type: 'COMPLETE_FARMER_ACTION' }),
+    farmerReturnedHome: () => dispatch({ type: 'FARMER_RETURNED_HOME' }),
   }), []);
 
   return (
@@ -330,4 +494,4 @@ export function useFarmStats() {
   }, [plots, state.totalHarvested, state.totalProfit]);
 }
 
-export { ROWS, COLS, ROW_LABELS };
+export { ROWS, COLS, ROW_LABELS, FARMER_IDLE_POSITION };

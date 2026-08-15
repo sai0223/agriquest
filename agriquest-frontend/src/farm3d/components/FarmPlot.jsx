@@ -1,5 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    FarmPlot — Individual interactive 3D soil plot
+   Supports tool mode interactions (water/fertilize on click)
    ═══════════════════════════════════════════════════════════════ */
 import React, { useRef, useState, useCallback } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -7,6 +8,7 @@ import { useFarmState } from '../simulation/farmState.jsx';
 import { GROWTH_STAGES } from '../data/cropData.js';
 import Crop3D from './Crop3D.jsx';
 import WaterEffect from './WaterEffect.jsx';
+import FertilizerEffect from './FertilizerEffect.jsx';
 
 const PLOT_SIZE = 1.6;
 const PLOT_HEIGHT = 0.08;
@@ -30,23 +32,59 @@ export default function FarmPlot({ plot }) {
 
   const isSelected = state.selectedPlotId === plot.id;
   const isEmpty = !plot.cropId;
+  const isToolActive = state.activeToolMode !== null;
+  const isWaterToolActive = state.activeToolMode === 'water';
+  const isFertilizeToolActive = state.activeToolMode === 'fertilize';
+  const farmerBusy = state.farmerState.isMoving || state.farmerState.isPerformingAction;
+
+  // Is the farmer currently performing an action on THIS plot?
+  const farmerOnThisPlot = state.farmerState.targetPlotId === plot.id;
+  const farmerWateringHere = farmerOnThisPlot && state.farmerState.action === 'water' && state.farmerState.isPerformingAction;
+  const farmerFertilizingHere = farmerOnThisPlot && state.farmerState.action === 'fertilize' && state.farmerState.isPerformingAction;
 
   const handleClick = useCallback((e) => {
     e.stopPropagation();
 
-    // If in planting mode and plot is empty, plant the crop
+    const pos = getPlotPosition(plot.row, plot.col);
+
+    // Tool mode: click to send farmer to this plot
+    if (isToolActive && !farmerBusy && plot.cropId) {
+      if (isWaterToolActive && !plot.isWatered) {
+        actions.startFarmerAction(plot.id, pos, 'water');
+        actions.selectPlot(plot.id);
+        return;
+      }
+      if (isFertilizeToolActive && !plot.isFertilized) {
+        actions.startFarmerAction(plot.id, pos, 'fertilize');
+        actions.selectPlot(plot.id);
+        return;
+      }
+    }
+
+    // Normal planting mode
     if (state.plantingMode && state.selectedCropId && isEmpty) {
       actions.plantCrop(plot.id, state.selectedCropId);
     }
 
     actions.selectPlot(plot.id);
-  }, [state.plantingMode, state.selectedCropId, isEmpty, plot.id, actions]);
+  }, [state.plantingMode, state.selectedCropId, isEmpty, plot.id, plot.row, plot.col,
+      isToolActive, isWaterToolActive, isFertilizeToolActive, farmerBusy,
+      plot.cropId, plot.isWatered, plot.isFertilized, actions]);
 
   const handlePointerOver = useCallback((e) => {
     e.stopPropagation();
     setHovered(true);
-    document.body.style.cursor = 'pointer';
-  }, []);
+    // Change cursor based on tool mode
+    if (isToolActive && plot.cropId) {
+      if ((isWaterToolActive && !plot.isWatered) || (isFertilizeToolActive && !plot.isFertilized)) {
+        document.body.style.cursor = 'crosshair';
+      } else {
+        document.body.style.cursor = 'not-allowed';
+      }
+    } else {
+      document.body.style.cursor = 'pointer';
+    }
+  }, [isToolActive, isWaterToolActive, isFertilizeToolActive, plot.cropId, plot.isWatered, plot.isFertilized]);
 
   const handlePointerOut = useCallback(() => {
     setHovered(false);
@@ -57,8 +95,17 @@ export default function FarmPlot({ plot }) {
   useFrame(() => {
     if (!outlineRef.current) return;
 
-    const targetOpacity = isSelected ? 0.7 : hovered ? 0.4 : 0;
-    const targetEmissive = isSelected ? 0.5 : hovered ? 0.3 : 0;
+    let targetOpacity, targetEmissive;
+
+    if (isToolActive && hovered && plot.cropId) {
+      // Tool mode hover — stronger glow
+      const canApply = (isWaterToolActive && !plot.isWatered) || (isFertilizeToolActive && !plot.isFertilized);
+      targetOpacity = canApply ? 0.6 : 0.2;
+      targetEmissive = canApply ? 0.6 : 0.1;
+    } else {
+      targetOpacity = isSelected ? 0.7 : hovered ? 0.4 : 0;
+      targetEmissive = isSelected ? 0.5 : hovered ? 0.3 : 0;
+    }
 
     outlineRef.current.material.opacity +=
       (targetOpacity - outlineRef.current.material.opacity) * 0.15;
@@ -71,8 +118,18 @@ export default function FarmPlot({ plot }) {
   // Soil color based on moisture
   const soilColor = plot.soilMoisture > 60 ? '#5d4037' : plot.soilMoisture > 30 ? '#795548' : '#8d6e63';
 
-  // Show water effect when recently watered
+  // Show water effect when recently watered or farmer is watering
   const showWater = plot.isWatered && plot.soilMoisture > 70;
+  const showActiveWater = farmerWateringHere;
+
+  // Show fertilizer effect
+  const showFertilizer = plot.isFertilized;
+  const showActiveFertilizer = farmerFertilizingHere;
+
+  // Outline color based on tool mode
+  const outlineColor = isToolActive && hovered
+    ? (isWaterToolActive ? '#29b6f6' : '#8d6e63')
+    : isSelected ? '#4caf50' : '#66bb6a';
 
   return (
     <group position={pos}>
@@ -101,8 +158,8 @@ export default function FarmPlot({ plot }) {
       >
         <planeGeometry args={[PLOT_SIZE + 0.06, PLOT_SIZE + 0.06]} />
         <meshStandardMaterial
-          color={isSelected ? '#4caf50' : '#66bb6a'}
-          emissive={isSelected ? '#4caf50' : '#66bb6a'}
+          color={outlineColor}
+          emissive={outlineColor}
           emissiveIntensity={0}
           transparent
           opacity={0}
@@ -141,8 +198,30 @@ export default function FarmPlot({ plot }) {
         </mesh>
       )}
 
-      {/* Water visual effect */}
-      {showWater && <WaterEffect />}
+      {/* Tool mode indicator — pulsing ring when hovering with tool */}
+      {isToolActive && hovered && plot.cropId && (
+        <mesh position={[0, PLOT_HEIGHT / 2 + 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[PLOT_SIZE * 0.35, PLOT_SIZE * 0.4, 24]} />
+          <meshStandardMaterial
+            color={isWaterToolActive ? '#29b6f6' : '#8d6e63'}
+            emissive={isWaterToolActive ? '#0288d1' : '#6d4c41'}
+            emissiveIntensity={1.2}
+            transparent
+            opacity={0.5 + Math.sin(Date.now() * 0.006) * 0.2}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
+
+      {/* Water visual effects */}
+      {(showWater || showActiveWater) && (
+        <WaterEffect active={showActiveWater} />
+      )}
+
+      {/* Fertilizer visual effects */}
+      {(showFertilizer || showActiveFertilizer) && (
+        <FertilizerEffect active={showActiveFertilizer} />
+      )}
 
       {/* Plot label - subtle text indicator */}
       {(hovered || isSelected) && (
