@@ -38,7 +38,7 @@ export default function LandingPage() {
             </p>
             <div className="hero-actions">
               {user ? (
-                <Link to={`/${user.role.toLowerCase()}/dashboard`} className="btn btn-primary btn-lg">
+                <Link to={user.role === 'FARMER' ? '/farmer/dashboard' : user.role === 'TEACHER' ? '/teacher/dashboard' : '/dashboard'} className="btn btn-primary btn-lg">
                   Go to Dashboard →
                 </Link>
               ) : (

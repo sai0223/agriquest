@@ -7,6 +7,7 @@ import { OrbitControls } from '@react-three/drei';
 import FarmTerrain from './FarmTerrain.jsx';
 import FarmPlot from './FarmPlot.jsx';
 import FarmEnvironment from './FarmEnvironment.jsx';
+import Farmer3D from './Farmer3D.jsx';
 import { useFarmState, ROWS, COLS, ROW_LABELS } from '../simulation/farmState.jsx';
 
 /* ─── Plots Grid ──────────────────────────────────────────── */
@@ -55,6 +56,7 @@ export default function FarmScene() {
           <FarmEnvironment />
           <FarmTerrain />
           <FarmPlots />
+          <Farmer3D />
         </Suspense>
 
         <OrbitControls
