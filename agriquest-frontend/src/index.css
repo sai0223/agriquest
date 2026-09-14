@@ -1689,6 +1689,487 @@ h4 { font-size: 1.1rem; }
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   BOREWELL CONTROL — Toggle switch with glow animation
+   ═══════════════════════════════════════════════════════════════ */
+.farm3d-borewell-control {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--clr-border);
+  background: linear-gradient(135deg, rgba(30,136,229,0.04), rgba(63,185,80,0.04));
+}
+.farm3d-borewell-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.farm3d-borewell-icon { font-size: 1.1rem; }
+.farm3d-borewell-label {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--clr-text);
+}
+.farm3d-borewell-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--clr-border);
+  background: var(--clr-surface-2);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+.farm3d-borewell-toggle.active {
+  border-color: rgba(30,136,229,0.5);
+  background: rgba(30,136,229,0.08);
+  box-shadow: 0 0 16px rgba(30,136,229,0.15), inset 0 0 20px rgba(30,136,229,0.05);
+  animation: borewellGlow 2s ease-in-out infinite;
+}
+@keyframes borewellGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(30,136,229,0.1); }
+  50% { box-shadow: 0 0 20px rgba(30,136,229,0.25), inset 0 0 20px rgba(30,136,229,0.08); }
+}
+.farm3d-borewell-toggle__knob {
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--clr-border);
+  position: relative;
+  transition: background 0.3s ease;
+  flex-shrink: 0;
+}
+.farm3d-borewell-toggle__knob::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #888;
+  top: 2px;
+  left: 2px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.farm3d-borewell-toggle.active .farm3d-borewell-toggle__knob {
+  background: rgba(30,136,229,0.4);
+}
+.farm3d-borewell-toggle.active .farm3d-borewell-toggle__knob::after {
+  left: 18px;
+  background: #42a5f5;
+  box-shadow: 0 0 8px rgba(66,165,245,0.6);
+}
+.farm3d-borewell-toggle__text {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 0.75rem;
+  color: var(--clr-text-muted);
+  letter-spacing: 0.1em;
+  transition: color 0.3s ease;
+}
+.farm3d-borewell-toggle.active .farm3d-borewell-toggle__text {
+  color: #42a5f5;
+}
+.farm3d-borewell-hint {
+  font-size: 0.62rem;
+  color: var(--clr-text-muted);
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+/* ─── Toolbar Borewell Indicator ─────────────────────────────── */
+.farm3d-toolbar__borewell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--clr-border);
+  background: var(--clr-surface-2);
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  color: var(--clr-text-muted);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.farm3d-toolbar__borewell.active {
+  border-color: rgba(30,136,229,0.5);
+  background: rgba(30,136,229,0.1);
+  color: #42a5f5;
+  box-shadow: 0 0 10px rgba(30,136,229,0.15);
+  animation: borewellGlow 2s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FARMING WORKFLOW — Step tracker, progress, actions
+   ═══════════════════════════════════════════════════════════════ */
+.farm3d-workflow {
+  padding: 0;
+}
+.farm3d-workflow-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(48,54,61,0.4);
+  background: linear-gradient(135deg, rgba(63,185,80,0.04), transparent);
+}
+.farm3d-workflow-icon {
+  font-size: 1.6rem;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--clr-surface-2);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--clr-border);
+}
+.farm3d-workflow-crop {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--clr-text);
+}
+.farm3d-workflow-method {
+  font-size: 0.65rem;
+  color: var(--clr-text-muted);
+  margin-top: 2px;
+}
+
+.farm3d-workflow-progress-section {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(48,54,61,0.4);
+}
+.farm3d-workflow-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  color: var(--clr-text-muted);
+  margin-bottom: 4px;
+}
+
+/* ─── Step Tracker ───────────────────────────────────────────── */
+.farm3d-step-tracker {
+  padding: 10px 14px;
+  max-height: 280px;
+  overflow-y: auto;
+  border-bottom: 1px solid rgba(48,54,61,0.4);
+}
+.farm3d-step-tracker::-webkit-scrollbar {
+  width: 4px;
+}
+.farm3d-step-tracker::-webkit-scrollbar-track {
+  background: transparent;
+}
+.farm3d-step-tracker::-webkit-scrollbar-thumb {
+  background: var(--clr-border);
+  border-radius: 2px;
+}
+
+.farm3d-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 0;
+  position: relative;
+  transition: opacity 0.3s ease;
+}
+.farm3d-step.future {
+  opacity: 0.4;
+}
+.farm3d-step.complete {
+  opacity: 0.7;
+}
+.farm3d-step.current {
+  opacity: 1;
+}
+
+/* Step marker (circle with number/checkmark) */
+.farm3d-step__marker {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: 800;
+  font-family: var(--font-heading);
+  flex-shrink: 0;
+  border: 2px solid var(--clr-border);
+  background: var(--clr-surface-2);
+  color: var(--clr-text-muted);
+  transition: all 0.3s ease;
+  position: relative;
+  z-index: 1;
+}
+.farm3d-step.complete .farm3d-step__marker {
+  background: var(--clr-primary-dim);
+  border-color: var(--clr-primary);
+  color: var(--clr-primary);
+}
+.farm3d-step.current .farm3d-step__marker {
+  background: rgba(240,165,0,0.15);
+  border-color: var(--clr-amber);
+  color: var(--clr-amber);
+  box-shadow: 0 0 8px rgba(240,165,0,0.3);
+  animation: stepPulse 1.5s ease-in-out infinite;
+}
+@keyframes stepPulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(240,165,0,0.2); }
+  50% { box-shadow: 0 0 12px rgba(240,165,0,0.5); }
+}
+
+/* Step connecting line */
+.farm3d-step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 30px;
+  width: 2px;
+  height: calc(100% - 18px);
+  background: var(--clr-border);
+  z-index: 0;
+}
+.farm3d-step.complete:not(:last-child)::before {
+  background: var(--clr-primary);
+}
+
+.farm3d-step__info {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
+.farm3d-step__label {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.72rem;
+  color: var(--clr-text);
+  line-height: 1.3;
+}
+.farm3d-step.complete .farm3d-step__label {
+  text-decoration: line-through;
+  color: var(--clr-text-muted);
+}
+.farm3d-step__desc {
+  font-size: 0.6rem;
+  color: var(--clr-text-muted);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+.farm3d-step__warning {
+  font-size: 0.6rem;
+  color: var(--clr-amber);
+  font-weight: 600;
+  margin-top: 4px;
+  padding: 3px 8px;
+  background: rgba(240,165,0,0.08);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(240,165,0,0.2);
+}
+
+/* Wait step progress bar */
+.farm3d-step__wait-bar {
+  width: 100%;
+  height: 3px;
+  background: var(--clr-border);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.farm3d-step__wait-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--clr-primary), #80ff9b);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+/* ─── Next Step Action Button ────────────────────────────────── */
+.farm3d-next-step-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: calc(100% - 28px);
+  margin: 10px 14px;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(63,185,80,0.4);
+  background: linear-gradient(135deg, rgba(63,185,80,0.12), rgba(63,185,80,0.04));
+  color: var(--clr-primary);
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: stepBtnPulse 2s ease-in-out infinite;
+}
+@keyframes stepBtnPulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(63,185,80,0.1); }
+  50% { box-shadow: 0 0 18px rgba(63,185,80,0.25); }
+}
+.farm3d-next-step-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(63,185,80,0.2), rgba(63,185,80,0.1));
+  border-color: var(--clr-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(63,185,80,0.2);
+}
+.farm3d-next-step-btn:disabled,
+.farm3d-next-step-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  animation: none;
+  border-color: rgba(240,165,0,0.3);
+  background: rgba(240,165,0,0.06);
+  color: var(--clr-amber);
+}
+.farm3d-next-step-btn__icon { font-size: 1rem; }
+.farm3d-next-step-btn__label { font-size: 0.75rem; }
+
+/* ─── Harvest Ready Banner ───────────────────────────────────── */
+.farm3d-harvest-ready-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 14px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(255,213,79,0.12), rgba(255,213,79,0.04));
+  border: 1px solid rgba(255,213,79,0.3);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  color: #ffd54f;
+  animation: harvestBannerGlow 2s ease-in-out infinite;
+}
+@keyframes harvestBannerGlow {
+  0%, 100% { box-shadow: 0 0 4px rgba(255,213,79,0.1); }
+  50% { box-shadow: 0 0 16px rgba(255,213,79,0.2); }
+}
+
+/* ─── Controls Empty State ───────────────────────────────────── */
+.farm3d-controls-empty {
+  padding: 24px 14px;
+  text-align: center;
+  color: var(--clr-text-muted);
+  font-size: 0.78rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PLOT INFO — Irrigation badges, farming step display
+   ═══════════════════════════════════════════════════════════════ */
+.farm3d-irrigation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--clr-border);
+  background: var(--clr-surface-2);
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: var(--font-heading);
+}
+.farm3d-current-step-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--radius-md);
+  background: rgba(240,165,0,0.08);
+  border: 1px solid rgba(240,165,0,0.2);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--clr-amber);
+  margin-top: 4px;
+}
+.farm3d-step-desc-text {
+  font-size: 0.62rem;
+  color: var(--clr-text-muted);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+.farm3d-borewell-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(248,81,73,0.3);
+  background: rgba(248,81,73,0.06);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--clr-danger);
+  margin-top: 4px;
+}
+.farm3d-borewell-status-badge.active {
+  border-color: rgba(30,136,229,0.4);
+  background: rgba(30,136,229,0.08);
+  color: #42a5f5;
+}
+.farm3d-warning-text {
+  font-size: 0.62rem;
+  color: var(--clr-amber);
+  margin-top: 4px;
+  font-weight: 600;
+}
+.farm3d-next-action-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(63,185,80,0.08), rgba(63,185,80,0.02));
+  border: 1px solid rgba(63,185,80,0.2);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--clr-primary);
+  animation: stepPulse 2s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CROP SELECTOR — Method badges, difficulty, irrigation type
+   ═══════════════════════════════════════════════════════════════ */
+.farm3d-crop-card__method {
+  margin-top: 4px;
+}
+.farm3d-crop-card__irrigation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid;
+  font-size: 0.6rem;
+  font-weight: 600;
+  font-family: var(--font-heading);
+  background: rgba(255,255,255,0.02);
+}
+.farm3d-crop-card__difficulty {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 0.6rem;
+}
+.farm3d-crop-card__difficulty-label {
+  font-weight: 700;
+  font-family: var(--font-heading);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ─── Text Color Utilities ───────────────────────────────────── */
+.text-green { color: var(--clr-primary) !important; }
+.text-amber { color: var(--clr-amber) !important; }
+.text-sky { color: var(--clr-sky) !important; }
+.text-danger { color: var(--clr-danger) !important; }
+
+/* ═══════════════════════════════════════════════════════════════
    CROP DATA MODAL — Floating popup over farm canvas
    ═══════════════════════════════════════════════════════════════ */
 

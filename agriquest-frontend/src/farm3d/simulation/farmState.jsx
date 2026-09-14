@@ -1,8 +1,12 @@
 /* ═══════════════════════════════════════════════════════════════
-   Farm State — Central state management for the 3D farm
+   Farm State — Central state management for realistic farming
+   Supports borewell toggle, crop-specific step workflows
    ═══════════════════════════════════════════════════════════════ */
 import { createContext, useContext, useReducer, useCallback, useMemo } from 'react';
-import { GROWTH_STAGES, getStageFromProgress, getCropById, getSoilQualityFromValue } from '../data/cropData.js';
+import {
+  GROWTH_STAGES, STEP_TYPES, getCropById,
+  getGrowthStageFromStep, getFarmingProgress, getSoilQualityFromValue
+} from '../data/cropData.js';
 
 /* ─── Grid setup ──────────────────────────────────────────── */
 const ROWS = 4;
@@ -19,15 +23,29 @@ function createEmptyPlot(row, col) {
     row,
     col,
     cropId: null,
-    growthProgress: 0,
     growthStage: GROWTH_STAGES.EMPTY,
-    soilMoisture: 50 + Math.random() * 20,  // 50-70
-    soilQuality: 60 + Math.random() * 30,   // 60-90
+    soilMoisture: 50 + Math.random() * 20,
+    soilQuality: 60 + Math.random() * 30,
     health: 100,
     isWatered: false,
     isFertilized: false,
     lastWateredAt: null,
     plantedAt: null,
+
+    /* ─── New: Farming step tracking ──────────────────── */
+    farmingStepIndex: -1,    // which step we're on (-1 = not started)
+    stepProgress: 0,         // progress within current step (0-100)
+    isStepComplete: false,   // is the current step finished?
+    needsAction: false,      // does the player need to do something?
+    irrigationType: null,    // inherited from crop
+    soilState: 'untilled',   // untilled | ploughed | puddled | ridged | mulched
+    isFlooded: false,        // rice: standing water
+    hasDripLines: false,     // tomato: drip irrigation installed
+    hasStakes: false,        // tomato: vine supports
+    hasRidges: false,        // corn/potato: ridge geometry
+    isPesticided: false,     // cotton: pest protection
+    isVineKilled: false,     // potato: vines cut
+    isDrained: false,        // rice: field drained
   };
 }
 
@@ -53,24 +71,39 @@ const initialState = {
   growthSpeed: 1,
   totalHarvested: 0,
   totalProfit: 0,
-  notifications: [], // { id, message, type }
+  notifications: [],
 
-  /* ─── Tool mode (water / fertilize free-painting) ──────── */
-  activeToolMode: null, // null | 'water' | 'fertilize'
+  /* ─── Tool mode ─────────────────────────────────────────── */
+  activeToolMode: null,
 
-  /* ─── Farmer character state ───────────────────────────── */
+  /* ─── BOREWELL STATE ────────────────────────────────────── */
+  borewellActive: false,
+  borewellFlowProgress: 0,
+  borewellWaterLevel: 1,
+
+  /* ─── Farmer character state ────────────────────────────── */
   farmerState: {
     position: [...FARMER_IDLE_POSITION],
     targetPlotId: null,
     targetPosition: null,
-    action: null,       // 'water' | 'fertilize' | 'plant' | 'harvest' | null
+    action: null,
     isMoving: false,
     isPerformingAction: false,
-    actionProgress: 0,  // 0-100
+    actionProgress: 0,
     idlePosition: [...FARMER_IDLE_POSITION],
     returningHome: false,
   },
 };
+
+/* ─── Helper: Get the next required action for a plot ──────── */
+function getNextStepInfo(plot) {
+  if (!plot.cropId) return null;
+  const crop = getCropById(plot.cropId);
+  if (!crop) return null;
+  const idx = plot.farmingStepIndex;
+  if (idx < 0 || idx >= crop.farmingSteps.length) return null;
+  return crop.farmingSteps[idx];
+}
 
 /* ─── Reducer ─────────────────────────────────────────────── */
 function farmReducer(state, action) {
@@ -85,10 +118,14 @@ function farmReducer(state, action) {
         plantingMode: action.cropId !== null,
       };
 
+    /* ─── PLANT CROP — starts the farming workflow ─────────── */
     case 'PLANT_CROP': {
       const { plotId, cropId } = action;
       const plot = state.plots[plotId];
       if (!plot || plot.cropId) return state;
+      const crop = getCropById(cropId);
+      if (!crop) return state;
+
       return {
         ...state,
         plots: {
@@ -96,22 +133,215 @@ function farmReducer(state, action) {
           [plotId]: {
             ...plot,
             cropId,
-            growthProgress: 0,
-            growthStage: GROWTH_STAGES.SEED,
+            growthStage: GROWTH_STAGES.EMPTY,
             health: 100,
             isWatered: false,
             isFertilized: false,
             plantedAt: Date.now(),
+            farmingStepIndex: 0,      // start at step 0
+            stepProgress: 0,
+            isStepComplete: false,
+            needsAction: true,        // first step needs player action
+            irrigationType: crop.irrigationType,
+            soilState: 'untilled',
+            isFlooded: false,
+            hasDripLines: false,
+            hasStakes: false,
+            hasRidges: false,
+            isPesticided: false,
+            isVineKilled: false,
+            isDrained: false,
           },
         },
         selectedPlotId: plotId,
         notifications: [
           ...state.notifications,
-          { id: Date.now(), message: `Planted ${getCropById(cropId)?.name} on ${plotId}`, type: 'success' },
+          { id: Date.now(), message: `Selected ${crop.name} for plot ${plotId} — Start with: ${crop.farmingSteps[0].label}`, type: 'success' },
         ],
       };
     }
 
+    /* ═══════════════════════════════════════════════════════════
+       PERFORM FARMING STEP — The main action dispatcher
+       When the farmer completes an action, advance the step
+       ═══════════════════════════════════════════════════════════ */
+    case 'PERFORM_FARMING_STEP': {
+      const { plotId } = action;
+      const plot = state.plots[plotId];
+      if (!plot || !plot.cropId) return state;
+
+      const crop = getCropById(plot.cropId);
+      if (!crop) return state;
+
+      const stepIndex = plot.farmingStepIndex;
+      if (stepIndex < 0 || stepIndex >= crop.farmingSteps.length) return state;
+
+      const step = crop.farmingSteps[stepIndex];
+
+      // Check if borewell is needed but not active
+      if (step.needsBorewell && !state.borewellActive) {
+        return {
+          ...state,
+          notifications: [
+            ...state.notifications,
+            { id: Date.now(), message: `⚠️ Turn on the Borewell first! ${step.label} requires water.`, type: 'warning' },
+          ],
+        };
+      }
+
+      // Apply step-specific effects
+      let updatedPlot = { ...plot };
+      let extraNotifications = [];
+
+      switch (step.type) {
+        case STEP_TYPES.PLOUGH:
+          updatedPlot.soilState = 'ploughed';
+          break;
+        case STEP_TYPES.PUDDLE:
+          updatedPlot.soilState = 'puddled';
+          updatedPlot.isFlooded = true;
+          updatedPlot.isWatered = true;
+          updatedPlot.soilMoisture = 100;
+          break;
+        case STEP_TYPES.DEEP_TILL:
+          updatedPlot.soilState = 'deep-tilled';
+          break;
+        case STEP_TYPES.RIDGE:
+          updatedPlot.hasRidges = true;
+          updatedPlot.soilState = 'ridged';
+          break;
+        case STEP_TYPES.MULCH:
+          updatedPlot.soilState = 'mulched';
+          break;
+        case STEP_TYPES.INSTALL_DRIP:
+          updatedPlot.hasDripLines = true;
+          break;
+        case STEP_TYPES.SOW:
+        case STEP_TYPES.TRANSPLANT:
+          updatedPlot.growthStage = step.growthStage;
+          break;
+        case STEP_TYPES.IRRIGATE:
+        case STEP_TYPES.MAINTAIN_WATER:
+          updatedPlot.isWatered = true;
+          updatedPlot.soilMoisture = Math.min(100, updatedPlot.soilMoisture + 40);
+          updatedPlot.lastWateredAt = Date.now();
+          if (crop.irrigationType?.id === 'flood') {
+            updatedPlot.isFlooded = true;
+          }
+          break;
+        case STEP_TYPES.FERTILIZE:
+          updatedPlot.isFertilized = true;
+          updatedPlot.soilQuality = Math.min(100, updatedPlot.soilQuality + 15);
+          updatedPlot.health = Math.min(100, updatedPlot.health + 10);
+          break;
+        case STEP_TYPES.STAKE:
+          updatedPlot.hasStakes = true;
+          break;
+        case STEP_TYPES.PESTICIDE:
+          updatedPlot.isPesticided = true;
+          updatedPlot.health = Math.min(100, updatedPlot.health + 15);
+          break;
+        case STEP_TYPES.HILL_UP:
+          updatedPlot.soilState = 'hilled';
+          break;
+        case STEP_TYPES.VINE_KILL:
+          updatedPlot.isVineKilled = true;
+          break;
+        case STEP_TYPES.DRAIN:
+          updatedPlot.isFlooded = false;
+          updatedPlot.isDrained = true;
+          updatedPlot.soilMoisture = Math.max(30, updatedPlot.soilMoisture - 40);
+          break;
+        case STEP_TYPES.HARVEST: {
+          // Harvest the crop!
+          const yieldMultiplier = (updatedPlot.health / 100) * (updatedPlot.soilQuality / 100);
+          const yieldAmount = Math.round((crop.yieldValue || 0) * yieldMultiplier);
+          const profit = Math.round(yieldAmount * (crop.basePrice || 1) / 10);
+
+          extraNotifications.push({
+            id: Date.now() + 1,
+            message: `🎉 Harvested ${crop.name}! Yield: ${yieldAmount} | Profit: ₹${profit}`,
+            type: 'success',
+          });
+
+          return {
+            ...state,
+            plots: {
+              ...state.plots,
+              [plotId]: {
+                ...createEmptyPlot(plot.row, plot.col),
+                soilQuality: Math.max(20, updatedPlot.soilQuality - 10),
+                soilMoisture: updatedPlot.soilMoisture,
+              },
+            },
+            totalHarvested: state.totalHarvested + yieldAmount,
+            totalProfit: state.totalProfit + profit,
+            notifications: [
+              ...state.notifications,
+              ...extraNotifications,
+            ],
+          };
+        }
+        default:
+          break;
+      }
+
+      // Advance to the next step or mark current step as in-progress
+      const isWaitStep = step.type === STEP_TYPES.WAIT;
+      const nextStepIndex = stepIndex + 1;
+      const isLastStep = nextStepIndex >= crop.farmingSteps.length;
+
+      updatedPlot.farmingStepIndex = nextStepIndex;
+      updatedPlot.stepProgress = 0;
+      updatedPlot.isStepComplete = false;
+      updatedPlot.growthStage = step.growthStage;
+
+      // If next step is a WAIT step, it auto-progresses (no player action needed)
+      if (!isLastStep) {
+        const nextStep = crop.farmingSteps[nextStepIndex];
+        updatedPlot.needsAction = nextStep.type !== STEP_TYPES.WAIT;
+      } else {
+        updatedPlot.needsAction = false;
+        updatedPlot.growthStage = GROWTH_STAGES.HARVESTABLE;
+      }
+
+      return {
+        ...state,
+        plots: {
+          ...state.plots,
+          [plotId]: updatedPlot,
+        },
+        notifications: [
+          ...state.notifications,
+          { id: Date.now(), message: `✅ ${step.label} complete on ${plotId}`, type: 'success' },
+          ...extraNotifications,
+        ],
+      };
+    }
+
+    /* ─── BOREWELL TOGGLE ──────────────────────────────────── */
+    case 'TOGGLE_BOREWELL':
+      return {
+        ...state,
+        borewellActive: !state.borewellActive,
+        notifications: [
+          ...state.notifications,
+          {
+            id: Date.now(),
+            message: state.borewellActive ? '🔴 Borewell turned OFF' : '🟢 Borewell turned ON — Water flowing!',
+            type: state.borewellActive ? 'warning' : 'success',
+          },
+        ],
+      };
+
+    /* ─── UPDATE BOREWELL FLOW ─────────────────────────────── */
+    case 'UPDATE_BOREWELL_FLOW':
+      return {
+        ...state,
+        borewellFlowProgress: action.progress,
+      };
+
+    /* ─── LEGACY ACTIONS (kept for compatibility) ──────────── */
     case 'WATER_PLOT': {
       const plot = state.plots[action.plotId];
       if (!plot || !plot.cropId) return state;
@@ -154,38 +384,6 @@ function farmReducer(state, action) {
       };
     }
 
-    case 'HARVEST_PLOT': {
-      const plot = state.plots[action.plotId];
-      if (!plot || !plot.cropId || plot.growthStage !== GROWTH_STAGES.HARVESTABLE) return state;
-      const crop = getCropById(plot.cropId);
-      const yieldMultiplier = (plot.health / 100) * (plot.soilQuality / 100);
-      const yieldAmount = Math.round((crop?.yieldValue || 0) * yieldMultiplier);
-      const profit = Math.round(yieldAmount * (crop?.basePrice || 1) / 10);
-
-      return {
-        ...state,
-        plots: {
-          ...state.plots,
-          [action.plotId]: {
-            ...plot,
-            cropId: null,
-            growthProgress: 0,
-            growthStage: GROWTH_STAGES.EMPTY,
-            isWatered: false,
-            isFertilized: false,
-            soilQuality: Math.max(20, plot.soilQuality - 10),
-            plantedAt: null,
-          },
-        },
-        totalHarvested: state.totalHarvested + yieldAmount,
-        totalProfit: state.totalProfit + profit,
-        notifications: [
-          ...state.notifications,
-          { id: Date.now(), message: `Harvested ${crop?.name}! Yield: ${yieldAmount} | Profit: $${profit}`, type: 'success' },
-        ],
-      };
-    }
-
     case 'REMOVE_CROP': {
       const plot = state.plots[action.plotId];
       if (!plot || !plot.cropId) return state;
@@ -193,15 +391,7 @@ function farmReducer(state, action) {
         ...state,
         plots: {
           ...state.plots,
-          [action.plotId]: {
-            ...plot,
-            cropId: null,
-            growthProgress: 0,
-            growthStage: GROWTH_STAGES.EMPTY,
-            isWatered: false,
-            isFertilized: false,
-            plantedAt: null,
-          },
+          [action.plotId]: createEmptyPlot(plot.row, plot.col),
         },
         notifications: [
           ...state.notifications,
@@ -213,66 +403,140 @@ function farmReducer(state, action) {
     case 'SET_GROWTH_SPEED':
       return { ...state, growthSpeed: action.speed };
 
+    /* ═══════════════════════════════════════════════════════════
+       TICK GROWTH — Auto-progress WAIT steps + moisture drain
+       ═══════════════════════════════════════════════════════════ */
     case 'TICK_GROWTH': {
       const newPlots = { ...state.plots };
       let changed = false;
 
       Object.keys(newPlots).forEach(plotId => {
         const plot = newPlots[plotId];
-        if (!plot.cropId || plot.growthStage === GROWTH_STAGES.HARVESTABLE) return;
+        if (!plot.cropId) return;
 
         const crop = getCropById(plot.cropId);
         if (!crop) return;
 
-        // Only grow if watered
-        if (!plot.isWatered) return;
+        const stepIndex = plot.farmingStepIndex;
+        if (stepIndex < 0 || stepIndex >= crop.farmingSteps.length) return;
 
-        const progressIncrement = (100 / crop.growthDuration) * state.growthSpeed;
-        const fertilizerBonus = plot.isFertilized ? 1.3 : 1.0;
-        const healthFactor = plot.health / 100;
-        const newProgress = Math.min(100, plot.growthProgress + progressIncrement * fertilizerBonus * healthFactor);
-        const newStage = getStageFromProgress(newProgress);
+        const step = crop.farmingSteps[stepIndex];
 
-        // Degrade moisture over time
-        const moistureDrain = 0.3 * state.growthSpeed;
-        const newMoisture = Math.max(0, plot.soilMoisture - moistureDrain);
+        // Only auto-progress WAIT steps
+        if (step.type === STEP_TYPES.WAIT) {
+          // Check if borewell is needed for this wait step
+          if (step.needsBorewell && !state.borewellActive) {
+            // Stall — crop needs water but borewell is off
+            let newHealth = Math.max(0, plot.health - 0.15 * state.growthSpeed);
+            if (newHealth !== plot.health) {
+              changed = true;
+              newPlots[plotId] = { ...plot, health: newHealth };
+            }
+            return;
+          }
 
-        // If moisture drops to 0, stop watering
-        const stillWatered = newMoisture > 5;
+          const progressPerTick = (100 / step.duration) * state.growthSpeed;
+          const fertBonus = plot.isFertilized ? 1.25 : 1.0;
+          const healthFactor = plot.health / 100;
+          const newProgress = Math.min(100, plot.stepProgress + progressPerTick * fertBonus * healthFactor);
 
-        // Health affected by low moisture
-        let newHealth = plot.health;
-        if (newMoisture < 20) {
-          newHealth = Math.max(0, newHealth - 0.2 * state.growthSpeed);
+          changed = true;
+
+          if (newProgress >= 100) {
+            // Auto-advance to next step
+            const nextIndex = stepIndex + 1;
+            const isLast = nextIndex >= crop.farmingSteps.length;
+
+            if (isLast) {
+              newPlots[plotId] = {
+                ...plot,
+                farmingStepIndex: nextIndex,
+                stepProgress: 100,
+                isStepComplete: true,
+                needsAction: false,
+                growthStage: GROWTH_STAGES.HARVESTABLE,
+              };
+            } else {
+              const nextStep = crop.farmingSteps[nextIndex];
+              newPlots[plotId] = {
+                ...plot,
+                farmingStepIndex: nextIndex,
+                stepProgress: 0,
+                isStepComplete: false,
+                needsAction: nextStep.type !== STEP_TYPES.WAIT,
+                growthStage: nextStep.growthStage,
+              };
+            }
+          } else {
+            newPlots[plotId] = {
+              ...plot,
+              stepProgress: newProgress,
+              growthStage: step.growthStage,
+            };
+          }
         }
 
-        if (newProgress !== plot.growthProgress || newMoisture !== plot.soilMoisture) {
+        // Degrade moisture over time
+        const moistureDrain = 0.15 * state.growthSpeed;
+        const currentPlot = newPlots[plotId] || plot;
+        const newMoisture = Math.max(0, currentPlot.soilMoisture - moistureDrain);
+
+        if (newMoisture !== currentPlot.soilMoisture) {
           changed = true;
           newPlots[plotId] = {
-            ...plot,
-            growthProgress: newProgress,
-            growthStage: newStage,
+            ...currentPlot,
             soilMoisture: newMoisture,
-            isWatered: stillWatered,
-            health: newHealth,
+            isWatered: newMoisture > 10,
           };
+        }
+
+        // If borewell is active and plot needs water, replenish
+        if (state.borewellActive && currentPlot.cropId) {
+          const cropData = getCropById(currentPlot.cropId);
+          if (cropData && cropData.needsBorewell) {
+            const replenish = newPlots[plotId] || currentPlot;
+            if (replenish.soilMoisture < 80) {
+              changed = true;
+              newPlots[plotId] = {
+                ...replenish,
+                soilMoisture: Math.min(100, replenish.soilMoisture + 0.5 * state.growthSpeed),
+                isWatered: true,
+              };
+            }
+          }
+        }
+
+        // Health degradation from low moisture
+        const finalPlot = newPlots[plotId] || plot;
+        if (finalPlot.soilMoisture < 15 && finalPlot.cropId) {
+          const newHealth = Math.max(0, finalPlot.health - 0.1 * state.growthSpeed);
+          if (newHealth !== finalPlot.health) {
+            changed = true;
+            newPlots[plotId] = { ...finalPlot, health: newHealth };
+          }
         }
       });
 
-      return changed ? { ...state, plots: newPlots } : state;
+      // Update borewell flow animation
+      let newFlowProgress = state.borewellFlowProgress;
+      if (state.borewellActive) {
+        newFlowProgress = (state.borewellFlowProgress + 0.01 * state.growthSpeed) % 1;
+        changed = true;
+      }
+
+      return changed ? { ...state, plots: newPlots, borewellFlowProgress: newFlowProgress } : state;
     }
 
-    /* ─── Tool Mode ─────────────────────────────────────────── */
+    /* ─── Tool Mode ────────────────────────────────────────── */
     case 'SET_TOOL_MODE':
       return {
         ...state,
         activeToolMode: action.mode,
-        // Clear planting mode when entering tool mode
         plantingMode: action.mode ? false : state.plantingMode,
         selectedCropId: action.mode ? null : state.selectedCropId,
       };
 
-    /* ─── Farmer Actions ────────────────────────────────────── */
+    /* ─── Farmer Actions ───────────────────────────────────── */
     case 'START_FARMER_ACTION':
       return {
         ...state,
@@ -322,11 +586,30 @@ function farmReducer(state, action) {
       };
 
     case 'COMPLETE_FARMER_ACTION': {
-      // Apply the actual farming action when the farmer finishes
       const farmerAction = state.farmerState.action;
       const targetPlotId = state.farmerState.targetPlotId;
       let updatedState = { ...state };
 
+      // If the action is 'farming_step', dispatch the step
+      if (farmerAction === 'farming_step' && targetPlotId) {
+        return farmReducer(
+          {
+            ...updatedState,
+            farmerState: {
+              ...updatedState.farmerState,
+              isPerformingAction: false,
+              actionProgress: 100,
+              returningHome: true,
+              targetPlotId: null,
+              action: null,
+            },
+            activeToolMode: null,
+          },
+          { type: 'PERFORM_FARMING_STEP', plotId: targetPlotId }
+        );
+      }
+
+      // Legacy water/fertilize actions
       if (farmerAction === 'water' && targetPlotId) {
         const plot = updatedState.plots[targetPlotId];
         if (plot && plot.cropId) {
@@ -428,13 +711,19 @@ export function FarmStateProvider({ children }) {
     plantCrop: (plotId, cropId) => dispatch({ type: 'PLANT_CROP', plotId, cropId }),
     waterPlot: (plotId) => dispatch({ type: 'WATER_PLOT', plotId }),
     fertilizePlot: (plotId) => dispatch({ type: 'FERTILIZE_PLOT', plotId }),
-    harvestPlot: (plotId) => dispatch({ type: 'HARVEST_PLOT', plotId }),
     removeCrop: (plotId) => dispatch({ type: 'REMOVE_CROP', plotId }),
     setGrowthSpeed: (speed) => dispatch({ type: 'SET_GROWTH_SPEED', speed }),
     tickGrowth: () => dispatch({ type: 'TICK_GROWTH' }),
     dismissNotification: (id) => dispatch({ type: 'DISMISS_NOTIFICATION', id }),
     clearOldNotifications: () => dispatch({ type: 'CLEAR_OLD_NOTIFICATIONS' }),
     setToolMode: (mode) => dispatch({ type: 'SET_TOOL_MODE', mode }),
+
+    /* ─── New actions ─────────────────────────────────────── */
+    toggleBorewell: () => dispatch({ type: 'TOGGLE_BOREWELL' }),
+    performFarmingStep: (plotId) => dispatch({ type: 'PERFORM_FARMING_STEP', plotId }),
+    updateBorewellFlow: (progress) => dispatch({ type: 'UPDATE_BOREWELL_FLOW', progress }),
+
+    /* ─── Farmer actions ──────────────────────────────────── */
     startFarmerAction: (plotId, targetPosition, farmerAction) =>
       dispatch({ type: 'START_FARMER_ACTION', plotId, targetPosition, farmerAction }),
     farmerArrivedAtPlot: () => dispatch({ type: 'FARMER_ARRIVED_AT_PLOT' }),
@@ -470,7 +759,6 @@ export function useFarmStats() {
     const avgQuality = plots.reduce((s, p) => s + p.soilQuality, 0) / totalPlots;
     const harvestReady = plots.filter(p => p.growthStage === GROWTH_STAGES.HARVESTABLE).length;
 
-    // Estimate expected yield from currently planted crops
     const expectedYield = plots.reduce((sum, p) => {
       if (!p.cropId) return sum;
       const crop = getCropById(p.cropId);
@@ -490,8 +778,9 @@ export function useFarmStats() {
       expectedYield,
       totalHarvested: state.totalHarvested,
       totalProfit: state.totalProfit,
+      borewellActive: state.borewellActive,
     };
-  }, [plots, state.totalHarvested, state.totalProfit]);
+  }, [plots, state.totalHarvested, state.totalProfit, state.borewellActive]);
 }
 
 export { ROWS, COLS, ROW_LABELS, FARMER_IDLE_POSITION };

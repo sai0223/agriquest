@@ -1,9 +1,10 @@
 /* ═══════════════════════════════════════════════════════════════
-   FarmControls — Action buttons with tool modes + growth speed
+   FarmControls — Realistic step-by-step farming actions panel
+   Shows crop-specific workflow with borewell toggle
    ═══════════════════════════════════════════════════════════════ */
 import React from 'react';
 import { useFarmState } from '../simulation/farmState.jsx';
-import { GROWTH_STAGES, getCropById } from '../data/cropData.js';
+import { GROWTH_STAGES, getCropById, STEP_TYPES } from '../data/cropData.js';
 import { getPlotPosition } from './FarmPlot.jsx';
 
 export default function FarmControls() {
@@ -11,61 +12,28 @@ export default function FarmControls() {
   const selectedPlot = state.selectedPlotId ? state.plots[state.selectedPlotId] : null;
 
   const hasCrop = selectedPlot?.cropId != null;
-  const isHarvestable = selectedPlot?.growthStage === GROWTH_STAGES.HARVESTABLE;
-  const canPlant = selectedPlot && !hasCrop && state.selectedCropId;
-  const canWater = hasCrop && !selectedPlot?.isWatered;
-  const canFertilize = hasCrop && !selectedPlot?.isFertilized;
-
-  const isWaterToolActive = state.activeToolMode === 'water';
-  const isFertilizeToolActive = state.activeToolMode === 'fertilize';
+  const crop = hasCrop ? getCropById(selectedPlot.cropId) : null;
   const farmerBusy = state.farmerState.isMoving || state.farmerState.isPerformingAction;
 
-  const handlePlant = () => {
-    if (!canPlant) return;
-    actions.plantCrop(state.selectedPlotId, state.selectedCropId);
-  };
+  /* ─── Get current and next step info ────────────────────── */
+  const currentStepIndex = selectedPlot?.farmingStepIndex ?? -1;
+  const totalSteps = crop?.farmingSteps?.length ?? 0;
+  const currentStep = crop?.farmingSteps?.[currentStepIndex] ?? null;
+  const isHarvestable = selectedPlot?.growthStage === GROWTH_STAGES.HARVESTABLE;
+  const canDoStep = hasCrop && selectedPlot.needsAction && !farmerBusy && currentStep;
 
-  /* Toggle water tool mode — or if a plot is selected, send farmer directly */
-  const handleWater = () => {
-    if (farmerBusy) return;
-    if (isWaterToolActive) {
-      // Turn off tool mode
-      actions.setToolMode(null);
-      return;
-    }
-    // If a plot is already selected and can be watered, send farmer there
-    if (canWater && selectedPlot) {
-      const pos = getPlotPosition(selectedPlot.row, selectedPlot.col);
-      actions.setToolMode('water');
-      actions.startFarmerAction(selectedPlot.id, pos, 'water');
-      return;
-    }
-    // Otherwise just enter tool mode for free-select
-    actions.setToolMode('water');
-  };
+  /* ─── Perform current farming step ──────────────────────── */
+  const handlePerformStep = () => {
+    if (!canDoStep || !selectedPlot) return;
 
-  /* Toggle fertilize tool mode */
-  const handleFertilize = () => {
-    if (farmerBusy) return;
-    if (isFertilizeToolActive) {
-      actions.setToolMode(null);
+    // Check borewell requirement
+    if (currentStep.needsBorewell && !state.borewellActive) {
+      // Show warning — borewell must be on
       return;
     }
-    if (canFertilize && selectedPlot) {
-      const pos = getPlotPosition(selectedPlot.row, selectedPlot.col);
-      actions.setToolMode('fertilize');
-      actions.startFarmerAction(selectedPlot.id, pos, 'fertilize');
-      return;
-    }
-    actions.setToolMode('fertilize');
-  };
 
-  const handleHarvest = () => {
-    if (!isHarvestable || farmerBusy) return;
-    if (selectedPlot) {
-      const pos = getPlotPosition(selectedPlot.row, selectedPlot.col);
-      actions.startFarmerAction(selectedPlot.id, pos, 'harvest');
-    }
+    const pos = getPlotPosition(selectedPlot.row, selectedPlot.col);
+    actions.startFarmerAction(selectedPlot.id, pos, 'farming_step');
   };
 
   const handleRemove = () => {
@@ -73,41 +41,43 @@ export default function FarmControls() {
     actions.removeCrop(state.selectedPlotId);
   };
 
-  const handleCancelTool = () => {
-    actions.setToolMode(null);
-  };
-
   return (
     <div className="farm3d-controls">
       <div className="farm3d-panel-header">
         <span className="farm3d-panel-icon">🛠️</span>
-        <h3 className="farm3d-panel-title">Actions</h3>
+        <h3 className="farm3d-panel-title">Farm Actions</h3>
       </div>
 
-      {/* Active tool mode indicator */}
-      {state.activeToolMode && (
-        <div className="farm3d-tool-mode-indicator">
-          <div className="farm3d-tool-mode-badge">
-            <span>{state.activeToolMode === 'water' ? '💧' : '🧪'}</span>
-            <span>{state.activeToolMode === 'water' ? 'Water Tool' : 'Fertilizer Tool'} Active</span>
-          </div>
-          <p className="farm3d-tool-mode-hint">
-            Click a plot with a crop to send the farmer
-          </p>
-          <button className="farm3d-tool-cancel-btn" onClick={handleCancelTool}>
-            ✕ Cancel Tool
-          </button>
+      {/* ═══════ BOREWELL CONTROL ═══════ */}
+      <div className="farm3d-borewell-control">
+        <div className="farm3d-borewell-header">
+          <span className="farm3d-borewell-icon">🚰</span>
+          <span className="farm3d-borewell-label">Borewell Pump</span>
         </div>
-      )}
+        <button
+          className={`farm3d-borewell-toggle ${state.borewellActive ? 'active' : ''}`}
+          onClick={() => actions.toggleBorewell()}
+        >
+          <span className="farm3d-borewell-toggle__knob" />
+          <span className="farm3d-borewell-toggle__text">
+            {state.borewellActive ? 'ON' : 'OFF'}
+          </span>
+        </button>
+        <p className="farm3d-borewell-hint">
+          {state.borewellActive
+            ? '💧 Water is flowing to the fields'
+            : '⚠️ Turn ON for water-dependent crops'}
+        </p>
+      </div>
 
-      {/* Farmer status */}
+      {/* ═══════ FARMER STATUS ═══════ */}
       {farmerBusy && (
         <div className="farm3d-farmer-status">
           <div className="farm3d-farmer-status-dot" />
           <span>
             {state.farmerState.isMoving
-              ? `🚶 Farmer walking to ${state.farmerState.targetPlotId}...`
-              : `🌾 Farmer ${state.farmerState.action}ing...`}
+              ? `🚶 Walking to ${state.farmerState.targetPlotId}...`
+              : `🌾 ${state.farmerState.action === 'farming_step' ? 'Working' : state.farmerState.action}...`}
           </span>
           {state.farmerState.isPerformingAction && (
             <div className="farm3d-farmer-progress">
@@ -120,57 +90,118 @@ export default function FarmControls() {
         </div>
       )}
 
-      <div className="farm3d-action-grid">
-        <button
-          className={`farm3d-action-btn farm3d-action-btn--plant${canPlant ? ' active' : ''}`}
-          onClick={handlePlant}
-          disabled={!canPlant || farmerBusy}
-          title="Plant selected crop on selected plot"
-        >
-          <span className="farm3d-action-btn__icon">🌱</span>
-          <span className="farm3d-action-btn__label">Plant</span>
-        </button>
+      {/* ═══════ CROP WORKFLOW ═══════ */}
+      {hasCrop && crop ? (
+        <div className="farm3d-workflow">
+          {/* Crop badge */}
+          <div className="farm3d-workflow-header">
+            <span className="farm3d-workflow-icon">{crop.icon}</span>
+            <div>
+              <div className="farm3d-workflow-crop">{crop.name}</div>
+              <div className="farm3d-workflow-method">
+                {crop.irrigationType?.icon} {crop.farmingMethod}
+              </div>
+            </div>
+          </div>
 
-        <button
-          className={`farm3d-action-btn farm3d-action-btn--water${isWaterToolActive ? ' tool-active' : canWater ? ' active' : ''}`}
-          onClick={handleWater}
-          disabled={farmerBusy}
-          title={isWaterToolActive ? 'Click to cancel water tool' : 'Activate water tool — click a plot to send farmer'}
-        >
-          <span className="farm3d-action-btn__icon">💧</span>
-          <span className="farm3d-action-btn__label">{isWaterToolActive ? 'Watering...' : 'Water'}</span>
-        </button>
+          {/* Overall progress bar */}
+          <div className="farm3d-workflow-progress-section">
+            <div className="farm3d-workflow-progress-label">
+              <span>Progress</span>
+              <span>{currentStepIndex}/{totalSteps} steps</span>
+            </div>
+            <div className="farm3d-progress-bar">
+              <div
+                className="farm3d-progress-bar__fill"
+                style={{
+                  width: `${(currentStepIndex / totalSteps) * 100}%`,
+                  backgroundColor: isHarvestable ? '#ffd54f' : '#4caf50',
+                }}
+              />
+            </div>
+          </div>
 
-        <button
-          className={`farm3d-action-btn farm3d-action-btn--fertilize${isFertilizeToolActive ? ' tool-active' : canFertilize ? ' active' : ''}`}
-          onClick={handleFertilize}
-          disabled={farmerBusy}
-          title={isFertilizeToolActive ? 'Click to cancel fertilize tool' : 'Activate fertilize tool — click a plot to send farmer'}
-        >
-          <span className="farm3d-action-btn__icon">🧪</span>
-          <span className="farm3d-action-btn__label">{isFertilizeToolActive ? 'Fertilizing...' : 'Fertilize'}</span>
-        </button>
+          {/* Step-by-step tracker */}
+          <div className="farm3d-step-tracker">
+            {crop.farmingSteps.map((step, i) => {
+              const isComplete = i < currentStepIndex;
+              const isCurrent = i === currentStepIndex;
+              const isFuture = i > currentStepIndex;
+              const isWaitStep = step.type === STEP_TYPES.WAIT;
 
-        <button
-          className={`farm3d-action-btn farm3d-action-btn--harvest${isHarvestable ? ' active' : ''}`}
-          onClick={handleHarvest}
-          disabled={!isHarvestable || farmerBusy}
-          title="Harvest mature crop — farmer will go collect"
-        >
-          <span className="farm3d-action-btn__icon">🌾</span>
-          <span className="farm3d-action-btn__label">Harvest</span>
-        </button>
+              return (
+                <div
+                  key={i}
+                  className={`farm3d-step ${isComplete ? 'complete' : ''} ${isCurrent ? 'current' : ''} ${isFuture ? 'future' : ''}`}
+                >
+                  <div className="farm3d-step__marker">
+                    {isComplete ? '✓' : isCurrent ? (isWaitStep ? '⏳' : '→') : (i + 1)}
+                  </div>
+                  <div className="farm3d-step__info">
+                    <div className="farm3d-step__label">{step.label}</div>
+                    {isCurrent && (
+                      <div className="farm3d-step__desc">{step.desc}</div>
+                    )}
+                    {isCurrent && isWaitStep && (
+                      <div className="farm3d-step__wait-bar">
+                        <div
+                          className="farm3d-step__wait-fill"
+                          style={{ width: `${selectedPlot.stepProgress}%` }}
+                        />
+                      </div>
+                    )}
+                    {isCurrent && step.needsBorewell && !state.borewellActive && (
+                      <div className="farm3d-step__warning">
+                        ⚠️ Requires Borewell ON!
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
-        <button
-          className={`farm3d-action-btn farm3d-action-btn--remove${hasCrop ? ' active' : ''}`}
-          onClick={handleRemove}
-          disabled={!hasCrop || farmerBusy}
-          title="Remove crop from plot"
-        >
-          <span className="farm3d-action-btn__icon">❌</span>
-          <span className="farm3d-action-btn__label">Remove</span>
-        </button>
-      </div>
+          {/* ─── ACTION BUTTON ─── */}
+          {canDoStep && (
+            <button
+              className={`farm3d-next-step-btn ${currentStep.needsBorewell && !state.borewellActive ? 'disabled' : ''}`}
+              onClick={handlePerformStep}
+              disabled={farmerBusy || (currentStep.needsBorewell && !state.borewellActive)}
+            >
+              <span className="farm3d-next-step-btn__icon">
+                {currentStep.needsBorewell && !state.borewellActive ? '🔒' : '👨‍🌾'}
+              </span>
+              <span className="farm3d-next-step-btn__label">
+                {currentStep.needsBorewell && !state.borewellActive
+                  ? 'Turn On Borewell First!'
+                  : `Do: ${currentStep.label}`}
+              </span>
+            </button>
+          )}
+
+          {isHarvestable && (
+            <div className="farm3d-harvest-ready-banner">
+              <span>🎉</span>
+              <span>Crop is ready! All steps complete.</span>
+            </div>
+          )}
+
+          {/* Remove button */}
+          <button
+            className={`farm3d-action-btn farm3d-action-btn--remove${hasCrop ? ' active' : ''}`}
+            onClick={handleRemove}
+            disabled={!hasCrop || farmerBusy}
+            title="Remove crop from plot"
+          >
+            <span className="farm3d-action-btn__icon">❌</span>
+            <span className="farm3d-action-btn__label">Remove Crop</span>
+          </button>
+        </div>
+      ) : (
+        <div className="farm3d-controls-empty">
+          <p>🌾 Select a crop and click an empty plot to begin farming!</p>
+        </div>
+      )}
 
       {/* Growth Speed Slider */}
       <div className="farm3d-speed-control">
@@ -196,12 +227,13 @@ export default function FarmControls() {
 
       {/* Quick tips */}
       <div className="farm3d-controls-tip">
-        <strong>💡 Tips:</strong>
+        <strong>💡 Farming Guide:</strong>
         <ul>
-          <li>Select a crop → click empty plot to plant</li>
-          <li>Click 💧 Water → select a plot → farmer goes to water</li>
-          <li>Click 🧪 Fertilize → select a plot → farmer spreads fertilizer</li>
-          <li>Harvest when golden ring appears</li>
+          <li>Select a crop → click empty plot to start</li>
+          <li>Follow the step-by-step workflow</li>
+          <li>🚰 Turn ON Borewell for water-needing steps</li>
+          <li>⏳ Wait steps auto-progress over time</li>
+          <li>🎉 Complete all steps to harvest!</li>
         </ul>
       </div>
     </div>

@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   CropSelector — Side panel to select a crop type for planting
+   CropSelector — Crop cards with farming method, irrigation, difficulty
    ═══════════════════════════════════════════════════════════════ */
 import React from 'react';
 import { CROPS } from '../data/cropData.js';
@@ -10,7 +10,7 @@ export default function CropSelector() {
 
   const handleSelect = (cropId) => {
     if (state.selectedCropId === cropId) {
-      actions.selectCrop(null); // deselect
+      actions.selectCrop(null);
     } else {
       actions.selectCrop(cropId);
     }
@@ -43,10 +43,31 @@ export default function CropSelector() {
               <div className="farm3d-crop-card__info">
                 <div className="farm3d-crop-card__name">{crop.name}</div>
                 <div className="farm3d-crop-card__desc">{crop.description}</div>
+
+                {/* Farming method & irrigation */}
+                <div className="farm3d-crop-card__method">
+                  <span
+                    className="farm3d-crop-card__irrigation-badge"
+                    style={{ borderColor: crop.irrigationType?.color, color: crop.irrigationType?.color }}
+                  >
+                    {crop.irrigationType?.icon} {crop.irrigationType?.label}
+                  </span>
+                </div>
+
                 <div className="farm3d-crop-card__meta">
-                  <span className="farm3d-crop-card__tag">💰 ${crop.basePrice}</span>
+                  <span className="farm3d-crop-card__tag">💰 ₹{crop.basePrice}</span>
                   <span className="farm3d-crop-card__tag">💧 {crop.waterNeeds}</span>
-                  <span className="farm3d-crop-card__tag">⏱️ {crop.growthDuration}s</span>
+                  <span className="farm3d-crop-card__tag">📋 {crop.farmingSteps?.length} steps</span>
+                </div>
+
+                {/* Difficulty stars */}
+                <div className="farm3d-crop-card__difficulty">
+                  <span style={{ color: crop.difficulty?.color }}>
+                    {'⭐'.repeat(crop.difficulty?.stars || 1)}
+                  </span>
+                  <span className="farm3d-crop-card__difficulty-label" style={{ color: crop.difficulty?.color }}>
+                    {crop.difficulty?.label}
+                  </span>
                 </div>
               </div>
               {isSelected && (

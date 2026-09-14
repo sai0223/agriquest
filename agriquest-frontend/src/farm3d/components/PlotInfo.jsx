@@ -1,9 +1,9 @@
 /* ═══════════════════════════════════════════════════════════════
-   PlotInfo — Displays information about the selected plot
+   PlotInfo — Displays farming step progress & plot details
    ═══════════════════════════════════════════════════════════════ */
 import React from 'react';
 import { useFarmState } from '../simulation/farmState.jsx';
-import { getCropById, getSoilQualityFromValue, GROWTH_STAGES } from '../data/cropData.js';
+import { getCropById, getSoilQualityFromValue, GROWTH_STAGES, getFarmingProgress } from '../data/cropData.js';
 
 function getHealthLabel(health) {
   if (health >= 80) return { label: 'Healthy', color: '#4caf50', icon: '💚' };
@@ -15,10 +15,12 @@ function getHealthLabel(health) {
 
 function getStageLabel(stage) {
   switch (stage) {
-    case GROWTH_STAGES.SEED: return '🌰 Seed';
-    case GROWTH_STAGES.SPROUT: return '🌱 Sprout';
+    case GROWTH_STAGES.PLOUGHING: return '🚜 Ploughing';
+    case GROWTH_STAGES.SOWING: return '🌰 Sowing';
+    case GROWTH_STAGES.SEEDLING: return '🌱 Seedling';
     case GROWTH_STAGES.GROWING: return '🌿 Growing';
-    case GROWTH_STAGES.MATURE: return '🌾 Mature';
+    case GROWTH_STAGES.FLOWERING: return '🌼 Flowering';
+    case GROWTH_STAGES.RIPENING: return '🌾 Ripening';
     case GROWTH_STAGES.HARVESTABLE: return '✨ Ready to Harvest';
     default: return '—';
   }
@@ -47,6 +49,10 @@ export default function PlotInfo() {
   const soilQ = getSoilQualityFromValue(plot.soilQuality);
   const healthInfo = getHealthLabel(plot.health);
 
+  const currentStep = crop?.farmingSteps?.[plot.farmingStepIndex];
+  const totalSteps = crop?.farmingSteps?.length ?? 0;
+  const overallProgress = crop ? getFarmingProgress(crop, plot.farmingStepIndex, plot.stepProgress) : 0;
+
   return (
     <div className="farm3d-plot-info">
       <div className="farm3d-panel-header">
@@ -67,20 +73,60 @@ export default function PlotInfo() {
         </div>
       </div>
 
-      {/* Growth Progress */}
-      {crop && (
+      {/* Irrigation type badge */}
+      {crop && crop.irrigationType && (
         <div className="farm3d-plot-section">
-          <div className="farm3d-plot-stat-label">Growth Progress</div>
+          <div className="farm3d-irrigation-badge" style={{ borderColor: crop.irrigationType.color }}>
+            <span>{crop.irrigationType.icon}</span>
+            <span style={{ color: crop.irrigationType.color }}>{crop.irrigationType.label}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Current farming step */}
+      {crop && currentStep && (
+        <div className="farm3d-plot-section">
+          <div className="farm3d-plot-stat-label">Current Step ({plot.farmingStepIndex + 1}/{totalSteps})</div>
+          <div className="farm3d-current-step-badge">
+            <span>{currentStep.label}</span>
+          </div>
+          <p className="farm3d-step-desc-text">{currentStep.desc}</p>
+          {/* Overall progress */}
+          <div className="farm3d-plot-stat-label" style={{ marginTop: '0.5rem' }}>Overall Progress</div>
           <div className="farm3d-progress-bar">
             <div
               className="farm3d-progress-bar__fill"
               style={{
-                width: `${plot.growthProgress}%`,
+                width: `${overallProgress}%`,
                 backgroundColor: plot.growthStage === GROWTH_STAGES.HARVESTABLE ? '#ffd54f' : '#4caf50',
               }}
             />
           </div>
-          <div className="farm3d-progress-value">{Math.round(plot.growthProgress)}%</div>
+          <div className="farm3d-progress-value">{Math.round(overallProgress)}%</div>
+        </div>
+      )}
+
+      {/* Borewell connection */}
+      {crop && (
+        <div className="farm3d-plot-section">
+          <div className="farm3d-plot-stat-label">Borewell</div>
+          <div className={`farm3d-borewell-status-badge ${state.borewellActive ? 'active' : ''}`}>
+            <span>{state.borewellActive ? '🟢' : '🔴'}</span>
+            <span>{state.borewellActive ? 'Connected & Flowing' : 'OFF'}</span>
+          </div>
+          {crop.needsBorewell && !state.borewellActive && (
+            <p className="farm3d-warning-text">⚠️ This crop needs the borewell!</p>
+          )}
+        </div>
+      )}
+
+      {/* Next Required Action */}
+      {plot.needsAction && currentStep && (
+        <div className="farm3d-plot-section">
+          <div className="farm3d-next-action-badge">
+            <span>👨‍🌾</span>
+            <span>Next: {currentStep.label}</span>
+          </div>
         </div>
       )}
 
@@ -120,18 +166,10 @@ export default function PlotInfo() {
         </div>
 
         <div className="farm3d-plot-stat">
-          <div className="farm3d-plot-stat-icon">💦</div>
+          <div className="farm3d-plot-stat-icon">🟫</div>
           <div className="farm3d-plot-stat-data">
-            <div className="farm3d-plot-stat-value">{plot.isWatered ? 'Yes' : 'No'}</div>
-            <div className="farm3d-plot-stat-label">Watered</div>
-          </div>
-        </div>
-
-        <div className="farm3d-plot-stat">
-          <div className="farm3d-plot-stat-icon">🧪</div>
-          <div className="farm3d-plot-stat-data">
-            <div className="farm3d-plot-stat-value">{plot.isFertilized ? 'Yes' : 'No'}</div>
-            <div className="farm3d-plot-stat-label">Fertilized</div>
+            <div className="farm3d-plot-stat-value" style={{ textTransform: 'capitalize' }}>{plot.soilState}</div>
+            <div className="farm3d-plot-stat-label">Soil State</div>
           </div>
         </div>
       </div>
