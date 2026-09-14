@@ -6,8 +6,10 @@ import { Sky } from '@react-three/drei';
 
 /* ─── Simple Tree ─────────────────────────────────────── */
 function Tree({ position, scale = 1 }) {
+  const treeScale = Array.isArray(scale) ? scale : [scale, scale, scale];
+
   return (
-    <group position={position} scale={scale}>
+    <group position={position} scale={treeScale}>
       {/* Trunk */}
       <mesh position={[0, 0.5, 0]} castShadow>
         <cylinderGeometry args={[0.08, 0.12, 1.0, 8]} />
@@ -28,8 +30,10 @@ function Tree({ position, scale = 1 }) {
 
 /* ─── Round Bush Tree ─────────────────────────────────── */
 function BushTree({ position, scale = 1 }) {
+  const bushScale = Array.isArray(scale) ? scale : [scale, scale, scale];
+
   return (
-    <group position={position} scale={scale}>
+    <group position={position} scale={bushScale}>
       <mesh position={[0, 0.35, 0]} castShadow>
         <cylinderGeometry args={[0.06, 0.1, 0.7, 6]} />
         <meshStandardMaterial color="#4e342e" roughness={0.9} />

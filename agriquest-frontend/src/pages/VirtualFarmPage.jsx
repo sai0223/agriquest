@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    VirtualFarmPage — 3D Interactive Farm Simulation
-   With tool modes, farmer character, and interactive actions
+   With realistic crop-specific farming workflows
    ═══════════════════════════════════════════════════════════════ */
 import React, { useState, useEffect } from 'react';
 import { FarmStateProvider, useFarmState } from '../farm3d/simulation/farmState.jsx';
@@ -10,6 +10,7 @@ import CropSelector from '../farm3d/components/CropSelector.jsx';
 import FarmControls from '../farm3d/components/FarmControls.jsx';
 import PlotInfo from '../farm3d/components/PlotInfo.jsx';
 import FarmStatistics from '../farm3d/components/FarmStatistics.jsx';
+import { getCropById } from '../farm3d/data/cropData.js';
 
 /* ─── Notification Toast ──────────────────────────────────── */
 function NotificationToasts() {
@@ -111,34 +112,28 @@ function FarmLayout() {
   );
 }
 
-/* ─── Toolbar with tool mode indicator ────────────────────── */
+/* ─── Toolbar with borewell indicator ─────────────────────── */
 function Toolbar() {
   const { state, actions } = useFarmState();
 
   return (
     <div className="farm3d-toolbar">
       <div className="farm3d-toolbar__left">
-        <span className="farm3d-toolbar__title">🌾 3D Virtual Farm</span>
-        <span className="farm3d-toolbar__badge">Interactive Simulation</span>
+        <span className="farm3d-toolbar__title">🌾 Virtual Farm</span>
+        <span className="farm3d-toolbar__badge">Realistic Simulation</span>
       </div>
       <div className="farm3d-toolbar__right">
-        {state.activeToolMode ? (
-          <div className="farm3d-toolbar__tool-active">
-            <span className="farm3d-toolbar__tool-icon">
-              {state.activeToolMode === 'water' ? '💧' : '🧪'}
-            </span>
-            <span className="farm3d-toolbar__tool-label">
-              {state.activeToolMode === 'water' ? 'Water Tool' : 'Fertilizer Tool'}
-            </span>
-            <button
-              className="farm3d-toolbar__tool-cancel"
-              onClick={() => actions.setToolMode(null)}
-              title="Cancel tool"
-            >
-              ✕
-            </button>
-          </div>
-        ) : state.farmerState.isMoving || state.farmerState.isPerformingAction ? (
+        {/* Borewell status indicator */}
+        <div
+          className={`farm3d-toolbar__borewell ${state.borewellActive ? 'active' : ''}`}
+          onClick={() => actions.toggleBorewell()}
+          title="Toggle Borewell"
+        >
+          <span>🚰</span>
+          <span>{state.borewellActive ? 'ON' : 'OFF'}</span>
+        </div>
+
+        {state.farmerState.isMoving || state.farmerState.isPerformingAction ? (
           <span className="farm3d-toolbar__hint farm3d-toolbar__hint--farmer">
             🚶 Farmer {state.farmerState.isMoving ? 'walking' : 'working'}...
           </span>
@@ -154,6 +149,7 @@ function Toolbar() {
 function BottomBar() {
   const { state } = useFarmState();
   const selectedPlot = state.selectedPlotId ? state.plots[state.selectedPlotId] : null;
+  const crop = selectedPlot?.cropId ? getCropById(selectedPlot.cropId) : null;
 
   return (
     <div className="farm3d-bottom-bar">
@@ -162,29 +158,25 @@ function BottomBar() {
       </span>
       {selectedPlot && (
         <span className="farm3d-bottom-bar__item">
-          📍 Selected: <strong className="text-green">{selectedPlot.id}</strong>
+          📍 <strong className="text-green">{selectedPlot.id}</strong>
         </span>
       )}
-      {state.selectedCropId && (
+      {crop && (
         <span className="farm3d-bottom-bar__item">
-          🌱 Planting: <strong className="text-amber">{state.selectedCropId}</strong>
-        </span>
-      )}
-      {state.activeToolMode && (
-        <span className="farm3d-bottom-bar__item">
-          🔧 Tool: <strong className="text-sky">{state.activeToolMode}</strong>
-        </span>
-      )}
-      {state.farmerState.isPerformingAction && (
-        <span className="farm3d-bottom-bar__item">
-          🌾 Farmer: <strong className="text-amber">{state.farmerState.action}ing ({state.farmerState.actionProgress}%)</strong>
+          {crop.icon} <strong className="text-amber">{crop.name}</strong>
+          <span style={{ marginLeft: 4, fontSize: '0.7rem', opacity: 0.7 }}>
+            Step {selectedPlot.farmingStepIndex + 1}/{crop.farmingSteps.length}
+          </span>
         </span>
       )}
       <span className="farm3d-bottom-bar__item">
-        ⚡ Speed: <strong>{state.growthSpeed}x</strong>
+        🚰 <strong className={state.borewellActive ? 'text-sky' : 'text-danger'}>{state.borewellActive ? 'ON' : 'OFF'}</strong>
       </span>
       <span className="farm3d-bottom-bar__item">
-        💰 Profit: <strong className="text-green">${state.totalProfit}</strong>
+        ⚡ <strong>{state.growthSpeed}x</strong>
+      </span>
+      <span className="farm3d-bottom-bar__item">
+        💰 <strong className="text-green">₹{state.totalProfit}</strong>
       </span>
     </div>
   );
