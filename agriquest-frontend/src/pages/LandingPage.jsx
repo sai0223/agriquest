@@ -1,180 +1,202 @@
-import React from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useAuth } from '../context/AuthContext';
+import AgriWorldCanvas from '../components/AgriWorldCanvas';
 
-const FEATURES = [
-  { icon: '🌾', title: 'Virtual Farm Simulation', desc: 'Make real farming decisions — soil, irrigation, pests — and see the outcome instantly with full explanations.' },
-  { icon: '🤖', title: 'AI Farming Assistant', desc: 'Role-aware AI that teaches students and diagnoses problems for experienced farmers.' },
-  { icon: '🏆', title: 'Gamification Engine', desc: 'Earn XP, level up, unlock badges, and climb the leaderboard as you master sustainable farming.' },
-  { icon: '💬', title: 'Farmer–Student Community', desc: 'Real farmers answer student questions from lived experience — authentic, not textbook.' },
-  { icon: '📖', title: 'Live Farm Diary', desc: 'Follow a real farmer\'s crop journey in parallel with your virtual simulation.' },
-  { icon: '📚', title: 'Structured Learning', desc: 'Bite-sized lessons on soil, irrigation, organic farming, and climate-smart agriculture — with quizzes.' },
+gsap.registerPlugin(ScrollTrigger);
+
+const SIGNALS = [
+  ['01', 'SOIL ORGANIC CARBON', '3.8%', 'Rising'],
+  ['02', 'WATER USE EFFICIENCY', '1.42 kg/m³', 'This cycle'],
+  ['03', 'POLLINATOR ACTIVITY', '+31%', 'Since planting'],
+  ['04', 'NITROGEN BALANCE', '+18 kg/ha', 'In range'],
+  ['05', 'CROP VIGOR INDEX', '0.91', 'Healthy'],
+  ['06', 'WATER SAVED', '32L', 'This cycle'],
+  ['07', 'CARBON STORED', '0.82 t/ha', 'Season total'],
+  ['08', 'RAINFALL CAPTURED', '612 mm', 'Field network'],
 ];
 
-const STATS = [
-  { value: '8', label: 'Simulation Stages' },
-  { value: '6+', label: 'Learning Modules' },
-  { value: '10', label: 'Achievement Badges' },
-  { value: '3', label: 'User Roles' },
+const STEPS = [
+  ['01', 'Choose a crop', 'Start with a living field and a clear goal.'],
+  ['02', 'Make the call', 'Shape the season with every decision.'],
+  ['03', 'Read the result', 'See the consequence. Keep the knowledge.'],
 ];
+
+function MetricTicker() {
+  const trackRef = useRef(null);
+  const viewportRef = useRef(null);
+  const position = useRef(0);
+  const velocity = useRef(-0.32);
+  const drag = useRef({ active: false, x: 0 });
+
+  useEffect(() => {
+    let frameId;
+    let halfWidth = 0;
+
+    const measure = () => {
+      halfWidth = (trackRef.current?.scrollWidth || 0) / 2;
+    };
+    const wrap = () => {
+      if (!halfWidth) return;
+      if (position.current <= -halfWidth) position.current += halfWidth;
+      if (position.current >= 0) position.current -= halfWidth;
+    };
+    const animate = () => {
+      if (!drag.current.active) {
+        velocity.current = velocity.current * 0.985 + (-0.32 * 0.015);
+        position.current += velocity.current;
+      }
+      wrap();
+      if (trackRef.current) trackRef.current.style.transform = `translate3d(${position.current}px, 0, 0)`;
+      frameId = requestAnimationFrame(animate);
+    };
+
+    measure();
+    window.addEventListener('resize', measure);
+    frameId = requestAnimationFrame(animate);
+    return () => {
+      window.removeEventListener('resize', measure);
+      cancelAnimationFrame(frameId);
+    };
+  }, []);
+
+  const handlePointerDown = (event) => {
+    drag.current = { active: true, x: event.clientX };
+    velocity.current = 0;
+    viewportRef.current?.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerMove = (event) => {
+    if (!drag.current.active) return;
+    const delta = event.clientX - drag.current.x;
+    position.current += delta;
+    velocity.current = delta;
+    drag.current.x = event.clientX;
+  };
+
+  const stopDragging = (event) => {
+    drag.current.active = false;
+    viewportRef.current?.releasePointerCapture?.(event.pointerId);
+  };
+
+  return (
+    <section
+      className="signal-ticker"
+      ref={viewportRef}
+      aria-label="Field analytics"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={stopDragging}
+      onPointerCancel={stopDragging}
+    >
+      <div className="signal-track" ref={trackRef}>
+        {[...SIGNALS, ...SIGNALS].map(([number, label, value, note], index) => (
+          <div className="signal-item" key={`${label}-${index}`}>
+            <span className="signal-number">{number}</span>
+            <span className="signal-label">{label}</span>
+            <strong>{value}</strong>
+            <small>{note}</small>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export default function LandingPage() {
   const { user } = useAuth();
+  const pageRef = useRef(null);
+  const heroRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const context = gsap.context(() => {
+      gsap.from('.home-reveal', {
+        y: 38,
+        opacity: 0,
+        duration: 1.1,
+        stagger: 0.1,
+        ease: 'power3.out',
+        delay: 0.15,
+      });
+      gsap.from('.world-frame', {
+        opacity: 0,
+        scale: 0.86,
+        rotate: -3,
+        duration: 1.5,
+        ease: 'power4.out',
+      });
+      gsap.from('.step-card', {
+        y: 45,
+        opacity: 0,
+        stagger: 0.15,
+        duration: 0.9,
+        ease: 'power3.out',
+        scrollTrigger: {
+          trigger: '.steps-grid',
+          start: 'top 78%',
+        },
+      });
+      gsap.to('.field-word', {
+        yPercent: -18,
+        ease: 'none',
+        scrollTrigger: {
+          trigger: '.field-section',
+          start: 'top bottom',
+          end: 'bottom top',
+          scrub: 1,
+        },
+      });
+    }, pageRef);
+
+    return () => context.revert();
+  }, []);
+
+  const dashboardPath = user?.role === 'FARMER' ? '/farmer/dashboard' : user?.role === 'TEACHER' ? '/teacher/dashboard' : '/dashboard';
 
   return (
-    <div>
-      {/* ─── Hero ───────────────────────────────────────────── */}
-      <section className="hero">
-        <div className="container">
-          <div className="hero-content" style={{ maxWidth: 680 }}>
-            <div className="hero-tagline">🌱 Gamified Agricultural Education</div>
-            <h1 className="hero-title">
-              Learn to Farm<br />
-              <span className="highlight">by Actually Farming</span>
-            </h1>
-            <p className="hero-subtitle">
-              AgriQuest gives you a virtual plot of land. Make real decisions — soil, irrigation, pests,
-              harvest — and learn the <em>why</em> behind every outcome. No textbooks. Just practice.
-            </p>
-            <div className="hero-actions">
-              {user ? (
-                <Link to={user.role === 'FARMER' ? '/farmer/dashboard' : user.role === 'TEACHER' ? '/teacher/dashboard' : '/dashboard'} className="btn btn-primary btn-lg">
-                  Go to Dashboard →
-                </Link>
-              ) : (
-                <>
-                  <Link to="/register" className="btn btn-primary btn-lg">Start Farming Free</Link>
-                  <Link to="/login" className="btn btn-outline btn-lg">Sign In</Link>
-                </>
-              )}
+    <main className="home-page" ref={pageRef}>
+      <section className="home-hero" ref={heroRef}>
+        <div className="hero-grid-lines" aria-hidden="true" />
+        <div className="container home-hero-inner">
+          <div className="home-copy">
+            <div className="eyebrow home-reveal"><span className="eyebrow-dot" /> THE FIELD IS YOURS</div>
+            <h1 className="home-title home-reveal">Grow a future<br /><em>worth cultivating.</em></h1>
+            <p className="home-subtitle home-reveal">AgriQuest turns sustainable farming into a living experiment. Make the decision, feel the consequence, and build the instinct that lasts beyond the screen.</p>
+            <div className="home-actions home-reveal">
+              <Link to={user ? dashboardPath : '/register'} className="btn btn-primary btn-lg">Enter the field <span aria-hidden="true">↗</span></Link>
+              <a href="#method" className="text-link">Explore the method <span aria-hidden="true">↓</span></a>
             </div>
-            <div className="hero-stats">
-              {STATS.map(s => (
-                <div key={s.label}>
-                  <div className="hero-stat-value">{s.value}</div>
-                  <div className="hero-stat-label">{s.label}</div>
-                </div>
-              ))}
-            </div>
+            <div className="hero-proof home-reveal"><span className="proof-rule" /> Built for curious minds, future farmers, and a healthier planet.</div>
+          </div>
+          <div className="world-frame" aria-label="Interactive 3D virtual crop field">
+            <div className="world-label world-label--top"><span>LIVE SIMULATION</span><strong>FIELD / 001</strong></div>
+            <div className="world-canvas"><AgriWorldCanvas /></div>
+            <div className="world-label world-label--bottom"><span>Move your cursor to explore</span><span className="world-status"><i /> ACTIVE</span></div>
+            <div className="world-orbit orbit-one" /><div className="world-orbit orbit-two" />
           </div>
         </div>
-
-        {/* Decorative floating elements */}
-        <div style={{
-          position: 'absolute', right: '8%', top: '20%',
-          fontSize: '8rem', opacity: 0.06, animation: 'pulse 4s ease-in-out infinite',
-          userSelect: 'none', pointerEvents: 'none'
-        }}>🌾</div>
-        <div style={{
-          position: 'absolute', right: '20%', bottom: '15%',
-          fontSize: '5rem', opacity: 0.04, animation: 'pulse 6s ease-in-out infinite 2s',
-          userSelect: 'none', pointerEvents: 'none'
-        }}>🌱</div>
+        <div className="hero-scroll"><span>SCROLL TO CULTIVATE</span><span className="scroll-line" /></div>
       </section>
 
-      {/* ─── Features ───────────────────────────────────────── */}
-      <section style={{ padding: 'var(--space-10) 0', background: 'var(--clr-surface)' }}>
-        <div className="container">
-          <div className="text-center mb-4">
-            <div className="section-label">What You Get</div>
-            <h2 className="section-title">Everything a <span>Farming Learner</span> Needs</h2>
-          </div>
-          <div className="grid-3 mt-6">
-            {FEATURES.map(f => (
-              <div key={f.title} className="card">
-                <div style={{ fontSize: '2rem', marginBottom: 'var(--space-3)' }}>{f.icon}</div>
-                <h4 style={{ marginBottom: 'var(--space-2)', fontFamily: 'var(--font-heading)' }}>{f.title}</h4>
-                <p className="text-muted" style={{ fontSize: '0.9rem', lineHeight: 1.7 }}>{f.desc}</p>
-              </div>
-            ))}
+      <MetricTicker />
+
+      <section className="field-section" id="method">
+        <div className="container field-inner">
+          <div className="section-marker">01 / THE METHOD</div>
+          <div className="field-heading"><h2>Learning should feel<br /><span>alive.</span></h2><div className="field-word" aria-hidden="true">FIELD</div></div>
+          <div className="steps-grid">
+            {STEPS.map(([number, title, copy]) => <article className="step-card" key={number}><span className="step-number">{number}</span><div><h3>{title}</h3><p>{copy}</p></div><span className="step-arrow">↗</span></article>)}
           </div>
         </div>
       </section>
 
-      {/* ─── How It Works ───────────────────────────────────── */}
-      <section style={{ padding: 'var(--space-10) 0' }}>
-        <div className="container container--narrow text-center">
-          <div className="section-label">The Learning Loop</div>
-          <h2 className="section-title mb-4">Farm → Decide → <span>Learn</span></h2>
-          {[
-            ['1', '🌱', 'Choose Your Crop', 'Pick from Rice, Wheat, Cotton, or Tomato and start your virtual farm.'],
-            ['2', '🤔', 'Make Decisions', 'Choose soil type, irrigation method, fertilizer, and pest control at each stage.'],
-            ['3', '📊', 'See the Outcome', 'The system simulates the real-world consequences of your choices instantly.'],
-            ['4', '💡', 'Learn the Why', 'Every outcome comes with a full explanation — wrong choices are teaching moments, not penalties.'],
-            ['5', '🏆', 'Earn & Progress', 'Gain XP, unlock badges, and level up as your farming knowledge grows.'],
-          ].map(([n, icon, title, desc]) => (
-            <div key={n} style={{
-              display: 'flex', alignItems: 'flex-start', gap: 'var(--space-4)',
-              textAlign: 'left', marginBottom: 'var(--space-5)'
-            }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-                background: 'var(--clr-primary-dim)', border: '2px solid var(--clr-primary)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: 'var(--font-heading)', fontWeight: 800, color: 'var(--clr-primary)'
-              }}>{n}</div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span>{icon}</span>
-                  <strong style={{ fontFamily: 'var(--font-heading)' }}>{title}</strong>
-                </div>
-                <p className="text-muted" style={{ fontSize: '0.9rem' }}>{desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+      <section className="home-cta">
+        <div className="container cta-inner"><div><div className="section-marker">02 / YOUR NEXT SEASON</div><h2>Make your first<br /><span>good decision.</span></h2></div><Link to={user ? dashboardPath : '/register'} className="cta-circle">Start<br />now <span>↗</span></Link></div>
       </section>
 
-      {/* ─── CTA ────────────────────────────────────────────── */}
-      <section style={{
-        padding: 'var(--space-10) 0',
-        background: 'linear-gradient(135deg, var(--clr-primary-dim), var(--clr-surface-2))',
-        borderTop: '1px solid var(--clr-border)'
-      }}>
-        <div className="container text-center">
-          {user ? (
-            <>
-              <h2 style={{ marginBottom: 'var(--space-3)' }}>Continue Your <span className="text-green">Farming Journey</span></h2>
-              <p className="text-muted" style={{ marginBottom: 'var(--space-5)' }}>
-                Welcome back, {user.name}! Jump right into your farm.
-              </p>
-              <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center' }}>
-                <Link to={user.role === 'FARMER' ? '/farmer/dashboard' : user.role === 'TEACHER' ? '/teacher/dashboard' : '/dashboard'} className="btn btn-primary btn-lg">
-                  Go to Dashboard →
-                </Link>
-                <Link to="/farm" className="btn btn-amber btn-lg">Open Farm Sim</Link>
-              </div>
-            </>
-          ) : (
-            <>
-              <h2 style={{ marginBottom: 'var(--space-3)' }}>Ready to Start Your <span className="text-green">Farming Journey?</span></h2>
-              <p className="text-muted" style={{ marginBottom: 'var(--space-5)' }}>
-                Join AgriQuest for free. No farming experience needed.
-              </p>
-              <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center' }}>
-                <Link to="/register?role=STUDENT" className="btn btn-primary btn-lg">I'm a Student</Link>
-                <Link to="/register?role=FARMER" className="btn btn-amber btn-lg">I'm a Farmer</Link>
-              </div>
-            </>
-          )}
-        </div>
-      </section>
-
-      {/* ─── Footer ─────────────────────────────────────────── */}
-      <footer style={{
-        padding: 'var(--space-5) 0',
-        borderTop: '1px solid var(--clr-border)',
-        background: 'var(--clr-bg)'
-      }}>
-        <div className="container flex justify-between items-center" style={{ flexWrap: 'wrap', gap: 16 }}>
-          <div className="navbar-brand" style={{ fontSize: '1.1rem' }}>
-            Agri<span>Quest</span>
-          </div>
-          <p className="text-muted" style={{ fontSize: '0.8rem' }}>
-            A Gamified Learning Platform for Sustainable Farming
-          </p>
-        </div>
-      </footer>
-    </div>
+      <footer className="home-footer"><div className="container footer-inner"><div className="navbar-brand">Agri<span>Quest</span></div><span>Simulation for a more sustainable tomorrow.</span><span>© 2026</span></div></footer>
+    </main>
   );
 }

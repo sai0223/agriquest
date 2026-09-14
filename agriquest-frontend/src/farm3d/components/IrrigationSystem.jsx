@@ -114,16 +114,18 @@ function BorewellHead({ isActive, waterLevel }) {
             roughness={0.1}
           />
         </mesh>
-        <mesh position={[0, waterLevel * 0.75, 0]} scale={[1, waterLevel, 1]}>
-          <cylinderGeometry args={[0.02, 0.02, 1.5, 8]} />
-          <meshStandardMaterial
-            color="#1e88e5"
-            transparent
-            opacity={0.8}
-            emissive="#1e88e5"
-            emissiveIntensity={0.3}
-          />
-        </mesh>
+        <group position={[0, waterLevel * 0.75, 0]} scale={[1, waterLevel, 1]}>
+          <mesh>
+            <cylinderGeometry args={[0.02, 0.02, 1.5, 8]} />
+            <meshStandardMaterial
+              color="#1e88e5"
+              transparent
+              opacity={0.8}
+              emissive="#1e88e5"
+              emissiveIntensity={0.3}
+            />
+          </mesh>
+        </group>
       </group>
 
       {/* Pressure gauge */}
@@ -220,33 +222,28 @@ function FieldChannels({ isActive, flowProgress }) {
       {[-1.65, 0, 1.65].map((z, zi) => (
         <group key={`dist-${zi}`}>
           {/* Channel trench */}
-          <mesh
-            position={[3.5, -0.05, z]}
-            rotation={[-Math.PI / 2, 0, 0]}
-            receiveShadow
-            scale={{ x: isActive ? 1 : 0, y: 1, z: 1 }}
-          >
-            <planeGeometry args={[4.8, 0.4, 10, 5]} />
-            <meshStandardMaterial color="#4a3728" roughness={0.95} />
-          </mesh>
+          <group position={[3.5, -0.05, z]} rotation={[-Math.PI / 2, 0, 0]} scale={[isActive ? 1 : 0, 1, 1]}>
+            <mesh receiveShadow>
+              <planeGeometry args={[4.8, 0.4, 10, 5]} />
+              <meshStandardMaterial color="#4a3728" roughness={0.95} />
+            </mesh>
+          </group>
 
           {/* Water in distribution channel */}
-          <mesh
-            position={[3.5, isActive ? 0.01 : -0.03, z]}
-            rotation={[-Math.PI / 2, 0, 0]}
-            scale={{ x: isActive ? 1 : 0.001, y: 1, z: 1 }}
-          >
-            <planeGeometry args={[4.8, 0.3, 10, 5]} />
-            <meshStandardMaterial
-              color="#1e88e5"
-              roughness={0.08}
-              metalness={0.15}
-              transparent
-              opacity={isActive ? 0.8 : 0}
-              depthWrite={false}
-              map={NoiseTexture({ scale: 1.5, opacity: 0.3, color: "#42a5f5" })}
-            />
-          </mesh>
+          <group position={[3.5, isActive ? 0.01 : -0.03, z]} rotation={[-Math.PI / 2, 0, 0]} scale={[isActive ? 1 : 0.001, 1, 1]}>
+            <mesh>
+              <planeGeometry args={[4.8, 0.3, 10, 5]} />
+              <meshStandardMaterial
+                color="#1e88e5"
+                roughness={0.08}
+                metalness={0.15}
+                transparent
+                opacity={isActive ? 0.8 : 0}
+                depthWrite={false}
+                map={NoiseTexture({ scale: 1.5, opacity: 0.3, color: "#42a5f5" })}
+              />
+            </mesh>
+          </group>
 
           {/* Gates at each plot entry - animated opening */}
           {[-1.65, 0, 1.65].map((x, xi) => (
@@ -336,41 +333,37 @@ function Furrows({ isActive, plots, flowProgress }) {
                   />
 
                   {/* Wet soil patches beside furrows */}
-                  <mesh
-                    position={[0, -0.015, furrowZ]}
-                    rotation={[-Math.PI / 2, 0, 0]}
-                    scale={{ x: 1, y: needsWater && isActive ? 1.5 : 1, z: 1 }}
-                  >
-                    <planeGeometry args={[1.4, 0.18]} />
-                    <meshStandardMaterial
-                      color={plot.soilMoisture > 60 ? '#4a3728' : '#5d4037'}
-                      roughness={0.95}
-                      transparent
-                      opacity={plot.soilMoisture > 60 ? 0.3 : 0}
-                    />
-                  </mesh>
+                  <group position={[0, -0.015, furrowZ]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, needsWater && isActive ? 1.5 : 1, 1]}>
+                    <mesh>
+                      <planeGeometry args={[1.4, 0.18]} />
+                      <meshStandardMaterial
+                        color={plot.soilMoisture > 60 ? '#4a3728' : '#5d4037'}
+                        roughness={0.95}
+                        transparent
+                        opacity={plot.soilMoisture > 60 ? 0.3 : 0}
+                      />
+                    </mesh>
+                  </group>
                 </group>
               );
             })}
 
             {/* End-of-furrow water pooling */}
             {isActive && needsWater && (
-              <mesh
-                position={[0, 0.02, 0.7]}
-                rotation={[-Math.PI / 2, 0, 0]}
-                scale={{ x: 0.5 + Math.sin(performance.now() * 0.003) * 0.1, y: 0.5 + Math.sin(performance.now() * 0.003) * 0.1, z: 1 }}
-              >
-                <circleGeometry args={[0.3, 16]} />
-                <meshStandardMaterial
-                  color="#1e88e5"
-                  roughness={0.02}
-                  metalness={0.25}
-                  transparent
-                  opacity={0.6}
-                  depthWrite={false}
-                  map={NoiseTexture({ scale: 3, opacity: 0.5, color: "#42a5f5" })}
-                />
-              </mesh>
+              <group position={[0, 0.02, 0.7]} rotation={[-Math.PI / 2, 0, 0]} scale={[0.5, 0.5, 1]}>
+                <mesh>
+                  <circleGeometry args={[0.3, 16]} />
+                  <meshStandardMaterial
+                    color="#1e88e5"
+                    roughness={0.02}
+                    metalness={0.25}
+                    transparent
+                    opacity={0.6}
+                    depthWrite={false}
+                    map={NoiseTexture({ scale: 3, opacity: 0.5, color: "#42a5f5" })}
+                  />
+                </mesh>
+              </group>
             )}
           </group>
         );
@@ -396,23 +389,20 @@ function FurrowWater({ position, isActive, flowProgress, length, delay }) {
   const visible = isActive && animatedProgress > 0;
 
   return (
-    <mesh
-      ref={meshRef}
-      position={position}
-      rotation={[-Math.PI / 2, 0, 0]}
-      scale={{ x: visible ? 1 : 0.001, y: 1, z: 1 }}
-    >
-      <planeGeometry args={[length, 0.08, 20, 4]} />
-      <meshStandardMaterial
-        color="#1e88e5"
-        roughness={0.05}
-        metalness={0.2}
-        transparent
-        opacity={visible ? 0.85 : 0}
-        depthWrite={false}
-        map={NoiseTexture({ scale: 2, opacity: 0.4, color: "#64b5f6" })}
-      />
-    </mesh>
+    <group position={position} rotation={[-Math.PI / 2, 0, 0]} scale={[visible ? 1 : 0.001, 1, 1]}>
+      <mesh ref={meshRef}>
+        <planeGeometry args={[length, 0.08, 20, 4]} />
+        <meshStandardMaterial
+          color="#1e88e5"
+          roughness={0.05}
+          metalness={0.2}
+          transparent
+          opacity={visible ? 0.85 : 0}
+          depthWrite={false}
+          map={NoiseTexture({ scale: 2, opacity: 0.4, color: "#64b5f6" })}
+        />
+      </mesh>
+    </group>
   );
 }
 

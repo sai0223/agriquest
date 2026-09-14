@@ -8,11 +8,15 @@ import { GROWTH_STAGES, getCropById } from '../data/cropData.js';
 
 /* ─── Leaf helper ─────────────────────────────────────────── */
 function Leaf({ position, rotation, scale, color, width = 0.3, height = 0.15 }) {
+  const leafScale = Array.isArray(scale) ? scale : [scale ?? 1, scale ?? 1, scale ?? 1];
+
   return (
-    <mesh position={position} rotation={rotation} scale={scale}>
-      <planeGeometry args={[width, height]} />
-      <meshStandardMaterial color={color} side={2} roughness={0.7} />
-    </mesh>
+    <group position={position} rotation={rotation} scale={leafScale}>
+      <mesh>
+        <planeGeometry args={[width, height]} />
+        <meshStandardMaterial color={color} side={2} roughness={0.7} />
+      </mesh>
+    </group>
   );
 }
 
